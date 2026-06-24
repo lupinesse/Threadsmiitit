@@ -140,6 +140,7 @@ export default function App() {
                 }}
               />
               <button
+                aria-label="Sulje haku"
                 onClick={() => {
                   setSearchOpen(false);
                   setQuery('');
@@ -194,6 +195,7 @@ export default function App() {
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 {tab === 'miitit' && (
                   <button
+                    aria-label="Hae miittejä"
                     onClick={() => setSearchOpen(true)}
                     style={{
                       all: 'unset',

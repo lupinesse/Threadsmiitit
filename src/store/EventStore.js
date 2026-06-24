@@ -10,8 +10,7 @@
  * working without changes.
  */
 
-import { CITIES, CATEGORIES } from '../data.js';
-import { MEETUPS } from '../data.js';
+import { CITIES, CATEGORIES, MEETUPS } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 
 const KEY = 'threadsmiitit_user_events_v1';
@@ -47,7 +46,8 @@ function loadCities() {
     const raw = localStorage.getItem(KEY_CITIES);
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr : [];
-  } catch {
+  } catch (err) {
+    console.warn('[EventStore] Could not load custom cities:', err);
     return [];
   }
 }
@@ -59,8 +59,8 @@ function loadCities() {
 function saveCities(arr) {
   try {
     localStorage.setItem(KEY_CITIES, JSON.stringify(arr));
-  } catch {
-    // Storage unavailable — silently skip.
+  } catch (err) {
+    console.warn('[EventStore] Could not save custom cities:', err);
   }
 }
 
@@ -145,7 +145,8 @@ function load() {
     const raw = localStorage.getItem(KEY);
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr : [];
-  } catch {
+  } catch (err) {
+    console.warn('[EventStore] Could not load user events:', err);
     return [];
   }
 }
@@ -157,8 +158,8 @@ function load() {
 function save(arr) {
   try {
     localStorage.setItem(KEY, JSON.stringify(arr));
-  } catch {
-    // Storage unavailable — silently skip.
+  } catch (err) {
+    console.warn('[EventStore] Could not save user events:', err);
   }
 }
 
