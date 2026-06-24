@@ -1,4 +1,5 @@
-// Threadsmiitit — main stylesheet entry point.
-// Import all partials below in dependency order.
+// Global styles for Threadsmiitit.
+// Component-level styles are applied inline via React style props.
+// This file only provides the bare-minimum resets and font loading.
 
 @use 'base';

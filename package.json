@@ -1,17 +1,17 @@
 {
   "name": "threadsmiitit",
   "version": "0.1.0",
-  "description": "Threadsmiitit — a thread management tool.",
+  "description": "Threadsmiitit — community meetup calendar for Finnish Threads users.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "node build.js && vite build",
-    "preview": "vite preview --port 8080",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "node --test test/unit.mjs",
-    "lint": "eslint src/js/ *.js \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" && stylelint \"src/css/**/*.scss\"",
+    "lint": "eslint \"src/**/*.{js,jsx}\" \"*.js\" \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" && stylelint \"src/css/**/*.scss\"",
     "lint:css": "stylelint \"src/css/**/*.scss\"",
     "format": "prettier --write \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\"",
@@ -20,16 +20,36 @@
     "clean-branches": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-branches.ps1"
   },
   "lint-staged": {
-    "src/js/*.js": ["eslint", "prettier --write"],
-    "*.js": ["eslint", "prettier --write"],
-    "src/css/*.scss": ["stylelint --fix", "prettier --write"],
-    "test/**/*.mjs": ["eslint", "prettier --write"],
-    ".github/scripts/**/*.mjs": ["eslint", "prettier --write"]
+    "src/**/*.{js,jsx}": [
+      "eslint",
+      "prettier --write"
+    ],
+    "*.js": [
+      "eslint",
+      "prettier --write"
+    ],
+    "src/css/*.scss": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "test/**/*.mjs": [
+      "eslint",
+      "prettier --write"
+    ],
+    ".github/scripts/**/*.mjs": [
+      "eslint",
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
     "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^10.5.0",
     "eslint-plugin-security": "^4.0.1",
     "globals": "^17.6.0",

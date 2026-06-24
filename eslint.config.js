@@ -21,14 +21,16 @@ export default [
     },
   },
 
-  // Extracted ES-module source files — imported directly by unit tests,
-  // run in the browser context.
+  // React source files — browser ES modules with JSX.
   {
-    files: ['src/js/*.js'],
+    files: ['src/**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
       globals: globals.browser,
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
