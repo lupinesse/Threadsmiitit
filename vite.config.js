@@ -1,68 +1,66 @@
 import { defineConfig } from 'vite';
-import { readFileSync, writeFileSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { compile } from 'sass';
+import react from '@vitejs/plugin-react';
 
-const JS_SRC = 'src/js';
-const JS_OUT = 'script.js';
-const CSS_SRC = 'src/css/styles.scss';
-const CSS_OUT = 'styles.css';
-
-function buildJS() {
-  const files = readdirSync(JS_SRC)
-    .filter((f) => f.endsWith('.js') && !f.endsWith('.example.js'))
-    .sort();
-  const parts = files.map((f) => {
-    const content = readFileSync(join(JS_SRC, f), 'utf8').replace(/\s+$/, '');
-    return `// ── ${f} ──\n${content}`;
-  });
-  const output = parts.join('\n\n') + '\n';
-  writeFileSync(JS_OUT, output);
-  return files.length;
-}
-
-function buildCSS() {
-  const result = compile(CSS_SRC, { style: 'expanded' });
-  writeFileSync(CSS_OUT, result.css);
-}
-
-function assetBuildPlugin() {
+/**
+ * Vite server-side middleware that proxies /api/chat to the Anthropic API.
+ * The API key is read from the ANTHROPIC_API_KEY environment variable and
+ * never exposed to the browser bundle.
+ *
+ * @returns {import('vite').Plugin}
+ */
+function chatApiPlugin() {
   return {
-    name: 'asset-build',
-    configureServer(_server) {
-      const jsCount = buildJS();
-      buildCSS();
-      console.log(`✓ Built ${JS_OUT} from ${jsCount} JS files and ${CSS_OUT} from SCSS`);
-    },
-    handleHotUpdate({ file, server }) {
-      const norm = file.replace(/\\/g, '/');
-      const name = norm.split('/').pop();
-
-      if (
-        norm.includes('/' + JS_SRC + '/') &&
-        file.endsWith('.js') &&
-        !file.endsWith('.example.js')
-      ) {
-        const count = buildJS();
-        console.log(`[vite] rebuilt ${JS_OUT} (${count} files) — ${name} changed`);
-        server.ws.send({ type: 'full-reload' });
-        return [];
-      }
-
-      if (norm.includes('/src/css/') && file.endsWith('.scss')) {
-        try {
-          buildCSS();
-          console.log(`[vite] rebuilt ${CSS_OUT} — ${name} changed`);
-          server.ws.send({ type: 'full-reload' });
-        } catch (err) {
-          console.error(`[vite] SCSS error in ${name}:`, err.message);
+    name: 'chat-api',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/chat', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
         }
-        return [];
-      }
-    },
-    buildStart() {
-      buildJS();
-      buildCSS();
+
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', async () => {
+          res.setHeader('Content-Type', 'application/json');
+          try {
+            const { prompt } = JSON.parse(body);
+            const apiKey = process.env.ANTHROPIC_API_KEY;
+
+            if (!apiKey) {
+              res.statusCode = 503;
+              res.end(
+                JSON.stringify({
+                  error: 'ANTHROPIC_API_KEY not set — AI assistant unavailable',
+                })
+              );
+              return;
+            }
+
+            const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+              },
+              body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 1024,
+                messages: [{ role: 'user', content: prompt }],
+              }),
+            });
+
+            const data = await upstream.json();
+            const text = data.content?.[0]?.text ?? '';
+            res.end(JSON.stringify({ text }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+      });
     },
   };
 }
@@ -85,5 +83,5 @@ export default defineConfig({
       input: 'index.html',
     },
   },
-  plugins: [assetBuildPlugin()],
+  plugins: [react({ jsxRuntime: 'automatic' }), chatApiPlugin()],
 });
