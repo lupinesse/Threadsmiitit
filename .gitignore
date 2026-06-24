@@ -9,6 +9,8 @@ styles.css
 docs/*
 !docs/qa-reports/
 !docs/dead-code-reports/
+!docs/screenshots/
+!docs/screenshots/*.png
 
 .DS_Store
 *.local
@@ -20,6 +22,7 @@ lint-out.json
 verify-*.png
 *.png
 !screenshots/
+!docs/screenshots/*.png
 
 # Personal config overrides — never commit
 src/js/00-config.local.js
