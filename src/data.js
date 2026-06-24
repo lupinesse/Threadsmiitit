@@ -47,7 +47,6 @@ export const CITIES = [
     short: 'Helsinki',
     note: 'Espoo, Kauniainen ja Vantaa mukana. Kirkkonummi, Vihti, Nurmijärvi, Hyvinkää, Tuusula, Kerava ja Järvenpää omina kaupunkeinaan.',
   },
-  { key: 'forssa', name: 'Forssa', short: 'Forssa' },
   { key: 'hyvinkaa', name: 'Hyvinkää', short: 'Hyvinkää' },
   { key: 'hameenlinna', name: 'Hämeenlinna', short: 'Hämeenlinna' },
   { key: 'jyvaskyla', name: 'Jyväskylä', short: 'Jyväskylä', account: '@miitit_jyvaskyla' },
@@ -476,15 +475,6 @@ export const MEETUPS = [
     cat: 'kulttuuri',
     org: ['@heta.kamarainen'],
     area: 'Espoo',
-    url: '',
-  },
-  // FORSSA
-  {
-    date: '2026-08-22',
-    city: 'forssa',
-    title: 'Mykkäelokuvafestarimiitti',
-    cat: 'kulttuuri',
-    org: ['@heta.kamarainen'],
     url: '',
   },
   // HYVINKÄÄ
