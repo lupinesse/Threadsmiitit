@@ -2,6 +2,18 @@
 
 Finnish community meetup calendar — aggregates Threads-posted meetups across Finnish cities into one read-only calendar that links back to the original posts for sign-up. Volunteer-run, all UI copy in Finnish.
 
+**Live:** https://lupinesse.github.io/Threadsmiitit/
+
+## Screenshots
+
+| Home (monodark) | Detail sheet | Chat assistant |
+|---|---|---|
+| ![Home screen](docs/screenshots/01-monodark-default.png) | ![Detail sheet](docs/screenshots/02-detail-sheet.png) | ![Chat assistant](docs/screenshots/05-chat-assistant.png) |
+
+| Warm palette | Bold vibe |
+|---|---|
+| ![Warm palette](docs/screenshots/03-palette-warm.png) | ![Bold vibe](docs/screenshots/04-vibe-bold.png) |
+
 ## Features
 
 - **Miitit** — filterable list with a "this week" highlight rail and group-by (date / city)
