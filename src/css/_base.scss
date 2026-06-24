@@ -1,0 +1,25 @@
+// Base reset and global typography.
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-bg: #fff;
+  --color-text: #111;
+  --color-accent: #0066cc;
+  --font-base: system-ui, sans-serif;
+  --font-size-base: 1rem;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-base);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}

@@ -1,0 +1,45 @@
+{
+  "name": "threadsmiitit",
+  "version": "0.1.0",
+  "description": "Threadsmiitit — a thread management tool.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "node build.js && vite build",
+    "preview": "vite preview --port 8080",
+    "test": "node --test test/unit.mjs",
+    "lint": "eslint src/js/ *.js \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" && stylelint \"src/css/**/*.scss\"",
+    "lint:css": "stylelint \"src/css/**/*.scss\"",
+    "format": "prettier --write \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\"",
+    "prepare": "husky",
+    "docs": "jsdoc -c jsdoc.config.json",
+    "clean-branches": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-branches.ps1"
+  },
+  "lint-staged": {
+    "src/js/*.js": ["eslint", "prettier --write"],
+    "*.js": ["eslint", "prettier --write"],
+    "src/css/*.scss": ["stylelint --fix", "prettier --write"],
+    "test/**/*.mjs": ["eslint", "prettier --write"],
+    ".github/scripts/**/*.mjs": ["eslint", "prettier --write"]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "eslint-plugin-security": "^4.0.1",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "jsdoc": "^4.0.5",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.4",
+    "sass": "^1.101.0",
+    "stylelint": "^17.13.0",
+    "stylelint-config-standard-scss": "^17.0.0",
+    "vite": "^8.0.16"
+  }
+}

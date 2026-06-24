@@ -1,0 +1,22 @@
+# Normalise line endings to LF in the repository; checkout as-is on all platforms.
+* text=auto eol=lf
+
+# Scripts must stay LF so they run correctly on Linux CI.
+*.sh text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.scss text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.ps1 text eol=crlf
+
+# Binaries — no line-ending conversion.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
