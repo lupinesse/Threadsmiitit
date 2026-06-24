@@ -65,7 +65,16 @@ function chatApiPlugin() {
   };
 }
 
+// Derive the sub-path for GitHub Pages deployments.
+// When running in GitHub Actions, GITHUB_REPOSITORY is set to "owner/repo".
+// Locally (or for custom domains where the app sits at the root) it is unset
+// and we fall back to '/' so `npm run dev` and `npm run preview` work as-is.
+const pagesBase = process.env.GITHUB_REPOSITORY
+  ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
+  : '/';
+
 export default defineConfig({
+  base: pagesBase,
   root: '.',
   server: {
     port: 8001,
