@@ -41,6 +41,27 @@ export default [
     },
   },
 
+  // Netlify Functions — ES modules running in Node 18+ (fetch + Response are
+  // built-in globals in the Netlify Functions v2 runtime).
+  {
+    files: ['netlify/functions/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        fetch: 'readonly',
+        Response: 'readonly',
+        Request: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+
   // CI dialogue scripts — ES modules running in Node (GitHub Actions).
   {
     files: ['.github/scripts/**/*.mjs'],
