@@ -11,6 +11,7 @@ import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
 import { MeetupDetail, Sheet } from './components/ui.jsx';
+import { ProfileSheet } from './components/ProfileSheet.jsx';
 import { ChatAssistant } from './components/ChatAssistant.jsx';
 import { ScreenMiitit } from './screens/ScreenMiitit.jsx';
 import { ScreenKalenteri } from './screens/ScreenKalenteri.jsx';
@@ -44,7 +45,7 @@ const TABS = [
  */
 export default function App() {
   const t = THEME;
-  const { user, login, logout } = useAuth();
+  const { user, login } = useAuth();
 
   // ── Navigation state ───────────────────────────────────────────────────
   const [tab, setTab] = useState('miitit');
@@ -59,17 +60,30 @@ export default function App() {
 
   // ── Interaction state ─────────────────────────────────────────────────
   const [selected, setSelected] = useState(null);
-  const [favs, setFavs] = useState(new Set());
+  const [favs, setFavs] = useState(() => {
+    try {
+      const raw = localStorage.getItem('threadsmiitit_favs_v1');
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  });
   const [cityFilter, setCityFilter] = useState('all');
   const [groupBy, setGroupBy] = useState('date');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   function toggleFav(m) {
     setFavs((s) => {
       const n = new Set(s);
       n.has(m.url) ? n.delete(m.url) : n.add(m.url);
+      try {
+        localStorage.setItem('threadsmiitit_favs_v1', JSON.stringify([...n]));
+      } catch {
+        // localStorage unavailable — favs remain in-memory only
+      }
       return n;
     });
   }
@@ -197,9 +211,9 @@ export default function App() {
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
                 {user ? (
                   <button
-                    aria-label={`Kirjautuneena: @${user.username}. Napsauta kirjautuaksesi ulos.`}
-                    onClick={logout}
-                    title={`@${user.username} — kirjaudu ulos`}
+                    aria-label={`Kirjautuneena: @${user.username}. Avaa oma profiili.`}
+                    onClick={() => setProfileOpen(true)}
+                    title={`@${user.username} — oma profiili`}
                     style={{
                       all: 'unset',
                       cursor: 'pointer',
@@ -403,6 +417,24 @@ export default function App() {
             onFav={() => selected && toggleFav(selected)}
           />
         </Sheet>
+
+        {/* ── Profile sheet ─────────────────────────────────────────── */}
+        <ProfileSheet
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          t={t}
+          favs={favs}
+          events={events}
+          onOpen={(m) => {
+            setProfileOpen(false);
+            setSelected(m);
+          }}
+          onDelete={refresh}
+          onOpenChat={() => {
+            setProfileOpen(false);
+            setChatOpen(true);
+          }}
+        />
 
         {/* ── Chat assistant sheet ───────────────────────────────────── */}
         <ChatAssistant t={t} open={chatOpen} onClose={() => setChatOpen(false)} refresh={refresh} />

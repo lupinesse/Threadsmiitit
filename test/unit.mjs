@@ -270,6 +270,39 @@ describe('EventStore add / find / remove', () => {
   });
 });
 
+describe('EventStore.normalize addedBy', () => {
+  it('passes through addedBy when present', () => {
+    const addedBy = {
+      id: '123',
+      username: 'testuser',
+      avatarUrl: 'https://example.com/av.jpg',
+      profileUrl: 'https://www.threads.com/@testuser',
+    };
+    const result = EventStore.normalize({
+      title: 'T',
+      date: '2026-06-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: '',
+      addedBy,
+    });
+    assert.deepStrictEqual(result.addedBy, addedBy);
+  });
+
+  it('omits addedBy when not supplied', () => {
+    const result = EventStore.normalize({
+      title: 'T',
+      date: '2026-06-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: '',
+    });
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(result, 'addedBy'), false);
+  });
+});
+
 describe('EventStore canonicalKunta', () => {
   it('finds Helsinki (case insensitive)', () => {
     assert.strictEqual(EventStore.canonicalKunta('HELSINKI'), 'Helsinki');
