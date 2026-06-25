@@ -76,9 +76,10 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
 
   function toggleFav(m) {
+    const key = EventStore.favKey(m);
     setFavs((s) => {
       const n = new Set(s);
-      n.has(m.url) ? n.delete(m.url) : n.add(m.url);
+      n.has(key) ? n.delete(key) : n.add(key);
       try {
         localStorage.setItem('threadsmiitit_favs_v1', JSON.stringify([...n]));
       } catch {
@@ -413,8 +414,9 @@ export default function App() {
           <MeetupDetail
             m={selected}
             t={t.card}
-            fav={selected ? favs.has(selected.url) : false}
+            fav={selected ? favs.has(EventStore.favKey(selected)) : false}
             onFav={() => selected && toggleFav(selected)}
+            onClose={() => setSelected(null)}
           />
         </Sheet>
 

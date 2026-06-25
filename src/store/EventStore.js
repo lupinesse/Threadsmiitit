@@ -324,6 +324,17 @@ function all() {
   return MEETUPS.concat(load());
 }
 
+/**
+ * Returns a stable, unique key for a meetup suitable for use in the
+ * favourites Set. User-added meetups use their generated `id`; seed
+ * meetups (which have no id) use a `title|date` composite.
+ * @param {{id?: string, title: string, date: string}} m
+ * @returns {string}
+ */
+function favKey(m) {
+  return m.id ?? `${m.title}|${m.date}`;
+}
+
 // Hydrate persisted custom cities into CITIES on module load.
 loadCities().forEach((c) => {
   if (!CITIES.find((x) => x.key === c.key)) CITIES.push(c);
@@ -337,6 +348,7 @@ const EventStore = {
   remove,
   find,
   all,
+  favKey,
   genId,
   normalize,
   resolveCity,

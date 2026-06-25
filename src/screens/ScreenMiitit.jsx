@@ -5,6 +5,7 @@
  */
 
 import { CITIES, DH } from '../data.js';
+import EventStore from '../store/EventStore.js';
 import { catColor, cityName, MeetupCard, CatTag, Pill } from '../components/ui.jsx';
 import { IconCalendar, IconPin, IconSpark } from '../components/icons.jsx';
 
@@ -326,7 +327,7 @@ export function ScreenMiitit({
                   t={t.card}
                   onClick={() => onOpen(m)}
                   dim={!DH.isUpcoming(m.date)}
-                  fav={favs.has(m.url)}
+                  fav={favs.has(EventStore.favKey(m))}
                 />
               ))}
             </div>

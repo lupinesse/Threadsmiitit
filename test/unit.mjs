@@ -303,6 +303,31 @@ describe('EventStore.normalize addedBy', () => {
   });
 });
 
+describe('EventStore.favKey', () => {
+  it('returns id for user-added meetups', () => {
+    assert.strictEqual(EventStore.favKey({ id: 'ab12', title: 'T', date: '2026-06-01' }), 'ab12');
+  });
+
+  it('returns title|date composite for seed meetups without id', () => {
+    assert.strictEqual(
+      EventStore.favKey({ title: 'Miitti', date: '2026-06-01' }),
+      'Miitti|2026-06-01'
+    );
+  });
+
+  it('gives distinct keys for two seed meetups on the same date', () => {
+    const k1 = EventStore.favKey({ title: 'Miitti A', date: '2026-06-01' });
+    const k2 = EventStore.favKey({ title: 'Miitti B', date: '2026-06-01' });
+    assert.notStrictEqual(k1, k2);
+  });
+
+  it('gives distinct keys for two seed meetups with empty url', () => {
+    const k1 = EventStore.favKey({ title: 'Foo', date: '2026-06-01', url: '' });
+    const k2 = EventStore.favKey({ title: 'Bar', date: '2026-06-01', url: '' });
+    assert.notStrictEqual(k1, k2);
+  });
+});
+
 describe('EventStore canonicalKunta', () => {
   it('finds Helsinki (case insensitive)', () => {
     assert.strictEqual(EventStore.canonicalKunta('HELSINKI'), 'Helsinki');

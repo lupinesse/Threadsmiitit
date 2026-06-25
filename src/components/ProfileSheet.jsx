@@ -32,7 +32,7 @@ export function ProfileSheet({ open, onClose, t, favs, events, onOpen, onDelete,
   if (!user) return null;
 
   const tc = t.card;
-  const favourited = events.filter((m) => m.url && favs.has(m.url));
+  const favourited = events.filter((m) => favs.has(EventStore.favKey(m)));
   const mine = events.filter((m) => m.addedBy?.username === user.username);
 
   function handleDelete(id) {
