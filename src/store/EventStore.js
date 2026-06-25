@@ -255,6 +255,7 @@ function normalize(p) {
       p.url && /^https?:\/\/(www\.)?threads\.(com|net)\//i.test(String(p.url).trim())
         ? String(p.url).trim()
         : '',
+    ...(p.addedBy ? { addedBy: p.addedBy } : {}),
   };
 }
 

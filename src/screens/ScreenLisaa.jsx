@@ -192,7 +192,7 @@ function CityAutocomplete({ t, value, onChange }) {
  *
  * @param {{t:object, onDone:Function, onOpenChat:Function, refresh:Function}} props
  */
-export function ScreenLisaa({ t, onDone, onOpenChat, refresh }) {
+export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ title: '', city: '', cat: '', date: '', org: '', url: '' });
   const [saved, setSaved] = useState(null);
@@ -213,7 +213,18 @@ export function ScreenLisaa({ t, onDone, onOpenChat, refresh }) {
           : true;
 
   function submit() {
-    const ev = EventStore.add(f);
+    const payload = user
+      ? {
+          ...f,
+          addedBy: {
+            id: user.id,
+            username: user.username,
+            avatarUrl: user.avatarUrl,
+            profileUrl: user.profileUrl,
+          },
+        }
+      : f;
+    const ev = EventStore.add(payload);
     setSaved(ev);
     refresh?.();
   }
