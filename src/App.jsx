@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { makeTheme } from './theme.js';
+import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
 import { MeetupDetail, Sheet } from './components/ui.jsx';
 import { ChatAssistant } from './components/ChatAssistant.jsx';
@@ -43,6 +44,7 @@ const TABS = [
  */
 export default function App() {
   const t = THEME;
+  const { user, login, logout } = useAuth();
 
   // ── Navigation state ───────────────────────────────────────────────────
   const [tab, setTab] = useState('miitit');
@@ -192,7 +194,62 @@ export default function App() {
                   {headerTitle}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                {user ? (
+                  <button
+                    aria-label={`Kirjautuneena: @${user.username}. Napsauta kirjautuaksesi ulos.`}
+                    onClick={logout}
+                    title={`@${user.username} — kirjaudu ulos`}
+                    style={{
+                      all: 'unset',
+                      cursor: 'pointer',
+                      width: 34,
+                      height: 34,
+                      borderRadius: 999,
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      border: `2px solid ${t.brand}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: t.surface,
+                      color: t.brandInk,
+                      fontWeight: 800,
+                      fontSize: 14,
+                    }}
+                  >
+                    {user.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <span style={{ color: t.brand }}>{user.username[0].toUpperCase()}</span>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={login}
+                    style={{
+                      all: 'unset',
+                      cursor: 'pointer',
+                      height: 34,
+                      padding: '0 12px',
+                      borderRadius: 999,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      border: `1px solid ${t.line}`,
+                      color: t.inkSoft,
+                      fontFamily: 'inherit',
+                      fontWeight: 600,
+                      fontSize: 13,
+                    }}
+                  >
+                    <IconThreads size={14} sw={1.5} /> Kirjaudu
+                  </button>
+                )}
                 {tab === 'miitit' && (
                   <button
                     aria-label="Hae miittejä"
@@ -267,6 +324,7 @@ export default function App() {
           {tab === 'lisaa' && (
             <ScreenLisaa
               t={t}
+              user={user}
               onDone={() => {
                 refresh();
                 setTab('miitit');

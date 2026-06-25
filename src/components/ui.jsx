@@ -269,6 +269,42 @@ export function MeetupCard({ m, t, onClick, dim = false, fav: _fav = false }) {
         {m.org && m.org.length > 0 && (
           <div style={{ fontSize: 12, color: t.inkSoft, marginTop: 3 }}>{m.org.join(', ')}</div>
         )}
+        {m.addedBy && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            {m.addedBy.avatarUrl ? (
+              <img
+                src={m.addedBy.avatarUrl}
+                alt=""
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 999,
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 999,
+                  background: t.brand,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  fontSize: 8,
+                  fontWeight: 800,
+                  color: t.brandInk,
+                }}
+              >
+                {m.addedBy.username[0].toUpperCase()}
+              </div>
+            )}
+            <span style={{ fontSize: 11, color: t.inkSoft }}>@{m.addedBy.username}</span>
+          </div>
+        )}
       </div>
       <IconChevron size={18} style={{ color: t.inkSoft, flexShrink: 0 }} />
     </button>
@@ -415,6 +451,62 @@ export function MeetupDetail({ m, t, fav, onFav }) {
             </div>
           </div>
         </div>
+        {m.addedBy && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+              padding: '9px 0',
+              borderBottom: `1px solid ${t.line}`,
+            }}
+          >
+            {m.addedBy.avatarUrl ? (
+              <img
+                src={m.addedBy.avatarUrl}
+                alt=""
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 999,
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 999,
+                  background: t.brand,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: t.brandInk,
+                }}
+              >
+                {m.addedBy.username[0].toUpperCase()}
+              </div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 11.5, color: t.inkSoft, fontWeight: 500, marginBottom: 2 }}>
+                Lisätty sovelluksessa
+              </div>
+              <a
+                href={m.addedBy.profileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 14, fontWeight: 600, color: t.brand, textDecoration: 'none' }}
+              >
+                @{m.addedBy.username}
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
       <div
