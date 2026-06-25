@@ -13,6 +13,19 @@
 import { randomBytes } from 'node:crypto';
 
 export default function handler(_req) {
+  // Temporary diagnostic — remove once env vars are confirmed
+  if (!process.env.THREADS_CLIENT_ID || !process.env.THREADS_REDIRECT_URI) {
+    return new Response(
+      JSON.stringify({
+        error: 'Missing environment variables',
+        THREADS_CLIENT_ID: !!process.env.THREADS_CLIENT_ID,
+        THREADS_REDIRECT_URI: !!process.env.THREADS_REDIRECT_URI,
+        THREADS_CLIENT_SECRET: !!process.env.THREADS_CLIENT_SECRET,
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   const state = randomBytes(16).toString('hex');
   const params = new URLSearchParams({
     client_id: process.env.THREADS_CLIENT_ID,
