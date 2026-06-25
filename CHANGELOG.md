@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/contexts/AuthContext.jsx`: React context exposing `user`, `login()`, and `logout()`.
 - `addedBy` attribution on user-submitted meetups: a small avatar + `@username` chip appears on meetup cards and in the detail sheet, linking to the poster's Threads profile.
 - `netlify/functions/auth-delete.js`: Meta-required data-deletion callback endpoint. Returns a confirmation code; no server-side data is stored so nothing needs to be deleted.
+- Profile sheet (`src/components/ProfileSheet.jsx`): tapping the avatar chip opens a sheet showing the logged-in user's favourited meetups (Suosikit) and their own submitted meetups (Miittini). Each user meetup has a *Muokkaa apurilla* shortcut and a *Poista* delete button. A *Kirjaudu ulos* button sits at the bottom.
+- Favourites are now persisted to `localStorage` (`threadsmiitit_favs_v1`) and survive page reload.
 
 ### Changed
 - `vite.config.js`: simplified `base` to always `'/'`; removed the `GITHUB_REPOSITORY`-derived `pagesBase` variable that was only needed for GitHub Pages sub-path deployments.

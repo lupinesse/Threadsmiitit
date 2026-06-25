@@ -22,7 +22,7 @@ import { IconArrowUpRight, IconClose } from './icons.jsx';
  *   favs: Set<string>,
  *   events: object[],
  *   onOpen: (m: object) => void,
- *   onDelete: (id: string) => void,
+ *   onDelete: () => void,
  *   onOpenChat: () => void,
  * }} props
  * @returns {React.ReactElement}
