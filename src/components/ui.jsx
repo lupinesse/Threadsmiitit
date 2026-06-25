@@ -13,6 +13,7 @@ import {
   IconArrowUpRight,
   IconSpark,
   IconThreads,
+  IconClose,
 } from './icons.jsx';
 
 // ── Colour utilities ────────────────────────────────────────────────────────
@@ -343,9 +344,9 @@ export function DetailRow({ icon, label, sub, t }) {
 
 /**
  * Full meetup detail view, rendered inside a Sheet.
- * @param {{m:object|null, t:object, fav:boolean, onFav:Function}} props
+ * @param {{m:object|null, t:object, fav:boolean, onFav:Function, onClose?:Function}} props
  */
-export function MeetupDetail({ m, t, fav, onFav }) {
+export function MeetupDetail({ m, t, fav, onFav, onClose }) {
   if (!m) return null;
   const days = DH.daysBetween(DH.todayStr(), m.date);
   const when =
@@ -374,6 +375,29 @@ export function MeetupDetail({ m, t, fav, onFav }) {
           >
             <IconSpark size={13} /> {when.toUpperCase()}
           </span>
+        )}
+        {onClose && (
+          <button
+            aria-label="Sulje"
+            onClick={onClose}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              marginLeft: 'auto',
+              width: 34,
+              height: 34,
+              borderRadius: 999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: t.inkSoft,
+              background: t.surface,
+              border: `1px solid ${t.line}`,
+              flexShrink: 0,
+            }}
+          >
+            <IconClose size={18} />
+          </button>
         )}
       </div>
       <h2

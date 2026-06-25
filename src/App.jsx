@@ -415,6 +415,7 @@ export default function App() {
             t={t.card}
             fav={selected ? favs.has(selected.url) : false}
             onFav={() => selected && toggleFav(selected)}
+            onClose={() => setSelected(null)}
           />
         </Sheet>
 
