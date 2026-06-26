@@ -61,7 +61,7 @@ export function AuthProvider({ children }) {
 
 /**
  * Returns the current auth context.
- * @returns {{ user: {id: string, username: string, avatarUrl: string|null, profileUrl: string}|null, login: () => void, logout: () => void }}
+ * @returns {object} Auth context with user (or null), login, and logout.
  */
 export function useAuth() {
   return useContext(AuthContext);

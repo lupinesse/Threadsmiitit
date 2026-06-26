@@ -61,7 +61,7 @@ op voi olla: "add", "edit" (vaatii "id"), "remove" (vaatii "id"), tai jätä act
 /**
  * Extracts a Threads post URL and organizer handle from free text.
  * @param {string} text
- * @returns {{url:string, handle:string|null}|null}
+ * @returns {object|null} Object with url and handle properties, or null.
  */
 function parseThreadsLink(text) {
   const m = String(text).match(/https?:\/\/(?:www\.)?threads\.(?:com|net)\/[^\s)]+/i);
@@ -97,8 +97,8 @@ function parseJSON(s) {
 /**
  * Applies a single action from the assistant's response to EventStore.
  * @param {object} a - Action object with op, and relevant fields.
- * @param {{url:string, handle:string|null}|null} link - Detected Threads link.
- * @returns {{changed:boolean, kind:string, event?:object, label:string}|null}
+ * @param {object|null} link - Detected Threads link, or null if none found.
+ * @returns {object|null} Result object with changed, kind, label (and optional event), or null.
  */
 function applyAction(a, link) {
   if (!a || !a.op) return null;
@@ -180,7 +180,7 @@ function renderText(text) {
 
 /**
  * Confirmation chip shown after an action (add/edit/remove/error).
- * @param {{r:{kind:string, label:string, event?:object}, t:object, ct:object}} props
+ * @param {object} props
  */
 function ResultChip({ r, t, ct }) {
   const err = r.kind === 'error';

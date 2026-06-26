@@ -35,10 +35,19 @@ export const CATEGORIES = {
 };
 
 /**
+ * @typedef {object} CityRecord
+ * @property {string} key - URL-safe identifier used as a lookup key.
+ * @property {string} name - Full display name (may include surrounding area note).
+ * @property {string} short - Short display name shown in the UI.
+ * @property {string} [note] - Optional descriptive note about the area.
+ * @property {string} [account] - Optional Threads account handle for the city.
+ */
+
+/**
  * Seed cities. Additional cities may be appended at runtime by EventStore
  * when users add meetups in unlisted municipalities.
  *
- * @type {Array<{key: string, name: string, short: string, note?: string, account?: string}>}
+ * @type {CityRecord[]}
  */
 export const CITIES = [
   {
@@ -72,8 +81,19 @@ export const CITIES = [
 export const ADMINS = ['@tintsh', '@nipatran', '@lupinesse'];
 
 /**
+ * @typedef {object} MeetupRecord
+ * @property {string} date - ISO date string (YYYY-MM-DD).
+ * @property {string} city - City key matching a CityRecord.
+ * @property {string} title - Display name of the meetup.
+ * @property {string} cat - Category key.
+ * @property {string[]} org - Organiser Threads handles.
+ * @property {string} url - URL to the Threads post (empty string if none).
+ * @property {string} [area] - Optional venue / area detail.
+ */
+
+/**
  * Seed meetups. Read-only — user events are managed separately by EventStore.
- * @type {Array<{date:string, city:string, title:string, cat:string, org:string[], url:string, area?:string}>}
+ * @type {MeetupRecord[]}
  */
 export const MEETUPS = [
   // HELSINKI & PK-SEUTU
