@@ -596,6 +596,8 @@ export function MeetupDetail({ m, t, fav, onFav, onClose }) {
           </div>
         )}
         <button
+          aria-label={fav ? 'Poista suosikeista' : 'Lisää suosikiksi'}
+          aria-pressed={fav}
           onClick={onFav}
           style={{
             all: 'unset',

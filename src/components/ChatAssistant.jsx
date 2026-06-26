@@ -450,6 +450,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
             </div>
           </div>
           <button
+            aria-label="Sulje apuri"
             onClick={onClose}
             style={{
               all: 'unset',
@@ -556,6 +557,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
             }}
           />
           <button
+            aria-label="Lähetä viesti"
             onClick={send}
             disabled={busy || !input.trim()}
             style={{
