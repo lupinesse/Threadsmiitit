@@ -10,7 +10,7 @@ import { IconArrowLeft, IconChevron } from '../components/icons.jsx';
 
 /**
  * Small round navigation button (prev/next month).
- * @param {{t:object, onClick:Function, children:React.ReactNode}} props
+ * @param {object} props
  */
 function RoundBtn({ t, onClick, children }) {
   return (
@@ -40,13 +40,7 @@ function RoundBtn({ t, onClick, children }) {
  * Kalenteri screen — month grid with colour-coded dots per meetup.
  * Tapping a day with meetups selects it and shows its meetups below the grid.
  *
- * @param {{
- *   t: object,
- *   onOpen: Function,
- *   cityFilter: string,
- *   setCityFilter: Function,
- *   events: object[]
- * }} props
+ * @param {object} props
  */
 export function ScreenKalenteri({ t, onOpen, cityFilter, setCityFilter, events }) {
   const todayD = DH.today();

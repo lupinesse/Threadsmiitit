@@ -5,7 +5,10 @@
  * DH provides date formatting and comparison utilities.
  */
 
-/** @type {string[]} Finnish month names in nominative case. */
+/**
+ * Finnish month names in nominative case.
+ * @type {string[]}
+ */
 export const MONTHS_FI = [
   'tammikuu',
   'helmikuu',
@@ -77,7 +80,10 @@ export const CITIES = [
   { key: 'turku', name: 'Turku', short: 'Turku' },
 ];
 
-/** Admin Threads handles. @type {string[]} */
+/**
+ * Admin Threads handles.
+ * @type {string[]}
+ */
 export const ADMINS = ['@tintsh', '@nipatran', '@lupinesse'];
 
 /**

@@ -11,7 +11,7 @@ import { IconCalendar, IconPin, IconSpark } from '../components/icons.jsx';
 
 /**
  * Wide horizontal card for the "Tällä viikolla" rail.
- * @param {{m:object, t:object, onClick:Function}} props
+ * @param {object} props
  */
 function WeekCard({ m, t, onClick }) {
   const accent = catColor(m.cat, t);
@@ -99,18 +99,7 @@ function WeekCard({ m, t, onClick }) {
  * Miitit (home) screen. Renders city filters, group-by toggle, optional
  * "this week" rail, and the grouped upcoming meetup list.
  *
- * @param {{
- *   t: object,
- *   onOpen: Function,
- *   favs: Set<string>,
- *   cityFilter: string,
- *   setCityFilter: Function,
- *   groupBy: string,
- *   setGroupBy: Function,
- *   query: string,
- *   showThisWeek: boolean,
- *   events: object[]
- * }} props
+ * @param {object} props
  */
 export function ScreenMiitit({
   t,

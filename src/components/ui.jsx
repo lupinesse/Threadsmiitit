@@ -101,7 +101,7 @@ export function CatTag({ cat, t, size = 'sm' }) {
 
 /**
  * Horizontal filter pill, styled as active (filled brand) or inactive.
- * @param {{t:object, active:boolean, onClick:Function, children:React.ReactNode}} props
+ * @param {object} props
  */
 export function Pill({ t, active, onClick, children }) {
   return (
@@ -133,7 +133,7 @@ export function Pill({ t, active, onClick, children }) {
 /**
  * 48×~60px calendar leaf showing weekday, day number and 3-letter month.
  * The weekday cap uses the category colour for visual rhythm.
- * @param {{date:string, cat:string, t:object}} props
+ * @param {object} props
  */
 export function DateLeaf({ date, cat, t }) {
   const d = DH.parse(date);
@@ -622,7 +622,7 @@ export function MeetupDetail({ m, t, fav, onFav, onClose }) {
 
 /**
  * Bottom sheet overlay. Slides up from the bottom with a scrim behind it.
- * @param {{open:boolean, onClose:Function, t:object, children:React.ReactNode}} props
+ * @param {object} props
  */
 export function Sheet({ open, onClose, t, children }) {
   return (

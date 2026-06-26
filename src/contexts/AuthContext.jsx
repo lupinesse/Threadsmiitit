@@ -17,7 +17,7 @@ const AuthContext = createContext(null);
 
 /**
  * Wraps the app with Threads auth state.
- * @param {{ children: React.ReactNode }} props
+ * @param {object} props
  * @returns {React.ReactElement}
  */
 export function AuthProvider({ children }) {
