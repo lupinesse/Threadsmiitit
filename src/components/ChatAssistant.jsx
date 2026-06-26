@@ -251,7 +251,7 @@ function ResultChip({ r, t, ct }) {
 
 /**
  * A single chat message bubble (user or assistant).
- * @param {{m:object, t:object, ct:object}} props
+ * @param {object} props
  */
 function Bubble({ m, t, ct }) {
   const isUser = m.role === 'user';
@@ -296,7 +296,7 @@ const GREETING =
 /**
  * AI chat assistant bottom sheet.
  *
- * @param {{t:object, open:boolean, onClose:Function, refresh:Function}} props
+ * @param {object} props
  */
 export function ChatAssistant({ t, open, onClose, refresh }) {
   const ct = t.card;

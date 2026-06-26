@@ -77,7 +77,7 @@ function inputStyle(t) {
  * Municipality autocomplete input backed by the official Finnish kunta list.
  * Shows up to 8 matching suggestions; accepts only valid Finnish municipalities.
  *
- * @param {{t:object, value:string, onChange:Function}} props
+ * @param {object} props
  */
 function CityAutocomplete({ t, value, onChange }) {
   const [open, setOpen] = useState(true);
@@ -190,7 +190,7 @@ function CityAutocomplete({ t, value, onChange }) {
 /**
  * Lisää miitti screen — guided 4-step form with a chat shortcut at the top.
  *
- * @param {{t:object, onDone:Function, onOpenChat:Function, refresh:Function}} props
+ * @param {object} props
  */
 export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
   const [step, setStep] = useState(0);

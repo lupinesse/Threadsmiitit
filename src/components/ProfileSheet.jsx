@@ -218,7 +218,7 @@ export function ProfileSheet({ open, onClose, t, favs, events, onOpen, onDelete,
 
 /**
  * Section with a heading label.
- * @param {{label: string, tc: object, children: React.ReactNode}} props
+ * @param {object} props
  */
 function Section({ label, tc, children }) {
   return (
@@ -242,7 +242,7 @@ function Section({ label, tc, children }) {
 
 /**
  * Empty state message.
- * @param {{tc: object, children: React.ReactNode}} props
+ * @param {object} props
  */
 function Empty({ tc, children }) {
   return (

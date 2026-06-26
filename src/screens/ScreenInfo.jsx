@@ -17,7 +17,7 @@ import {
 
 /**
  * Shared back-arrow header for sub-pages.
- * @param {{t:object, title:string, onBack:Function}} props
+ * @param {object} props
  */
 function SubHeader({ t, title, onBack }) {
   return (
