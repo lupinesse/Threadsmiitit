@@ -5,7 +5,7 @@
 
 /**
  * Base icon wrapper. Children should be SVG path/shape elements.
- * @param {{size?:number, sw?:number, fill?:string, children:React.ReactNode, style?:object}} props
+ * @param {object} props
  */
 function Icon({ size = 24, sw = 1.8, fill = 'none', children, style }) {
   return (

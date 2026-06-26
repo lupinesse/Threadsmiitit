@@ -27,7 +27,7 @@ const URL_RE = /^https?:\/\/(www\.)?threads\.(com|net)\//i;
 
 /**
  * Field wrapper with a label and optional hint.
- * @param {{label:string, hint?:string, t:object, children:React.ReactNode}} props
+ * @param {object} props
  */
 function Field({ label, hint, t, children }) {
   return (

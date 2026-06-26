@@ -62,7 +62,7 @@ export function cityName(key) {
 
 /**
  * Small colour-coded category tag / badge.
- * @param {{cat:string, t:object, size?:'sm'|'lg'}} props
+ * @param {object} props - Props: cat (category key), t (theme), size ('sm'|'lg').
  */
 export function CatTag({ cat, t, size = 'sm' }) {
   const color = catColor(cat, t);
@@ -197,7 +197,7 @@ export function DateLeaf({ date, cat, t }) {
  * Core meetup card — a tappable row with DateLeaf, category tag, city,
  * title, organizer line, and a chevron.
  *
- * @param {{m:object, t:object, onClick:Function, dim?:boolean, fav?:boolean}} props
+ * @param {object} props - Props: m (meetup), t (theme), onClick, dim (boolean), fav (boolean).
  */
 export function MeetupCard({ m, t, onClick, dim = false, fav: _fav = false }) {
   return (
@@ -316,7 +316,7 @@ export function MeetupCard({ m, t, onClick, dim = false, fav: _fav = false }) {
 
 /**
  * A labelled detail row with an icon, primary text, and optional subtitle.
- * @param {{icon:React.ReactNode, label:string, sub?:string, t:object}} props
+ * @param {object} props - Props: icon (ReactNode), label (string), sub (string, optional), t (theme).
  */
 export function DetailRow({ icon, label, sub, t }) {
   return (
@@ -344,7 +344,7 @@ export function DetailRow({ icon, label, sub, t }) {
 
 /**
  * Full meetup detail view, rendered inside a Sheet.
- * @param {{m:object|null, t:object, fav:boolean, onFav:Function, onClose?:Function}} props
+ * @param {object} props - Props: m (meetup or null), t (theme), fav (boolean), onFav, onClose (optional).
  */
 export function MeetupDetail({ m, t, fav, onFav, onClose }) {
   if (!m) return null;

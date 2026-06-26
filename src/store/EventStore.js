@@ -328,7 +328,7 @@ function all() {
  * Returns a stable, unique key for a meetup suitable for use in the
  * favourites Set. User-added meetups use their generated `id`; seed
  * meetups (which have no id) use a `title|date` composite.
- * @param {{id?: string, title: string, date: string}} m
+ * @param {object} m
  * @returns {string}
  */
 function favKey(m) {

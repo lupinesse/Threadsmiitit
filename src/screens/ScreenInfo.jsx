@@ -405,7 +405,7 @@ function SubKaraoke({ t, onBack, events }) {
  * Info hub root — hero card + 2×2 tile grid + admin credits.
  * Sub-pages slide in by setting `sub`.
  *
- * @param {{t:object, onOpen:Function, sub:string|null, setSub:Function, events:object[]}} props
+ * @param {object} props - Props: t (theme), onOpen, sub (current sub-page key or null), setSub, events.
  */
 export function ScreenInfo({ t, onOpen, sub, setSub, events }) {
   if (sub === 'menneet')

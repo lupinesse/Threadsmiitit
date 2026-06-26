@@ -15,16 +15,7 @@ import { MeetupCard, Sheet, hexA } from './ui.jsx';
 import { IconArrowUpRight, IconClose } from './icons.jsx';
 
 /**
- * @param {{
- *   open: boolean,
- *   onClose: () => void,
- *   t: object,
- *   favs: Set<string>,
- *   events: object[],
- *   onOpen: (m: object) => void,
- *   onDelete: () => void,
- *   onOpenChat: () => void,
- * }} props
+ * @param {object} props - Props: open, onClose, t (theme), favs (Set), events, onOpen, onDelete, onOpenChat.
  * @returns {React.ReactElement}
  */
 export function ProfileSheet({ open, onClose, t, favs, events, onOpen, onDelete, onOpenChat }) {
