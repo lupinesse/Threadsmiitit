@@ -100,6 +100,7 @@ function WeekCard({ m, t, onClick }) {
  * "this week" rail, and the grouped upcoming meetup list.
  *
  * @param {object} props
+ * @param {Function} [props.onClearSearch] - Called when the user wants to clear an active search.
  */
 export function ScreenMiitit({
   t,
@@ -110,6 +111,7 @@ export function ScreenMiitit({
   groupBy,
   setGroupBy,
   query,
+  onClearSearch,
   showThisWeek = true,
   events,
 }) {
@@ -234,7 +236,9 @@ export function ScreenMiitit({
         }}
       >
         <span style={{ fontSize: 12.5, color: t.inkSoft, fontWeight: 600 }}>
-          {upcoming.length} tulevaa miittiä
+          {query
+            ? `${upcoming.length} ${upcoming.length === 1 ? 'tulos' : 'tulosta'}`
+            : `${upcoming.length} tulevaa miittiä`}
         </span>
         <div
           style={{
@@ -286,10 +290,41 @@ export function ScreenMiitit({
             >
               <IconCalendar size={36} />
             </div>
-            <div style={{ fontSize: 14.5, fontWeight: 600, color: t.ink }}>Ei tulevia miittejä</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>
-              Kokeile toista kaupunkia tai lisää oma miittisi.
-            </div>
+            {query ? (
+              <>
+                <div style={{ fontSize: 14.5, fontWeight: 600, color: t.ink }}>
+                  Ei tuloksia haulle &ldquo;{query}&rdquo;
+                </div>
+                {onClearSearch && (
+                  <button
+                    onClick={onClearSearch}
+                    style={{
+                      all: 'unset',
+                      cursor: 'pointer',
+                      marginTop: 12,
+                      display: 'inline-block',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: t.brand,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Tyhjennä haku
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 14.5, fontWeight: 600, color: t.ink }}>
+                  Ei tulevia miittejä
+                </div>
+                <div style={{ fontSize: 13, marginTop: 4 }}>
+                  {cityFilter !== 'all'
+                    ? 'Kokeile toista kaupunkia tai lisää oma miittisi.'
+                    : 'Lisää oma miittisi Lisää-välilehdeltä.'}
+                </div>
+              </>
+            )}
           </div>
         )}
         {groups.map((g, gi) => (

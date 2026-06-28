@@ -328,6 +328,53 @@ describe('EventStore.favKey', () => {
   });
 });
 
+describe('EventStore.edit', () => {
+  it('updates a field and returns the updated event', () => {
+    const ev = EventStore.add({
+      title: 'Alkuperäinen',
+      date: '2026-09-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@org',
+      url: 'https://www.threads.com/edit-test',
+    });
+    const updated = EventStore.edit(ev.id, { title: 'Päivitetty' });
+    assert.ok(updated, 'should return the updated event');
+    assert.strictEqual(updated.title, 'Päivitetty');
+  });
+
+  it('preserves the event id after edit', () => {
+    const ev = EventStore.add({
+      title: 'IdTesti',
+      date: '2026-09-02',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@a',
+      url: 'https://www.threads.com/id-testi',
+    });
+    const updated = EventStore.edit(ev.id, { title: 'IdTesti Muokattu' });
+    assert.strictEqual(updated?.id, ev.id);
+  });
+
+  it('returns null for an unknown id', () => {
+    assert.strictEqual(EventStore.edit('zzzz', { title: 'Aave' }), null);
+  });
+
+  it('edit preserves fields that are not in the patch', () => {
+    const ev = EventStore.add({
+      title: 'SäilyTesti',
+      date: '2026-09-03',
+      city: 'tampere',
+      cat: 'karaoke',
+      org: '@x',
+      url: 'https://www.threads.com/sailytesti',
+    });
+    const updated = EventStore.edit(ev.id, { title: 'SäilyTesti Uusi' });
+    assert.strictEqual(updated?.city, 'tampere');
+    assert.strictEqual(updated?.cat, 'karaoke');
+  });
+});
+
 describe('EventStore canonicalKunta', () => {
   it('finds Helsinki (case insensitive)', () => {
     assert.strictEqual(EventStore.canonicalKunta('HELSINKI'), 'Helsinki');

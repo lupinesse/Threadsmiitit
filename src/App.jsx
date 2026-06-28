@@ -10,7 +10,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
-import { MeetupDetail, Sheet } from './components/ui.jsx';
+import { MeetupDetail, Sheet, hexA } from './components/ui.jsx';
 import { ProfileSheet } from './components/ProfileSheet.jsx';
 import { ChatAssistant } from './components/ChatAssistant.jsx';
 import { ScreenMiitit } from './screens/ScreenMiitit.jsx';
@@ -45,7 +45,7 @@ const TABS = [
  */
 export default function App() {
   const t = THEME;
-  const { user, login } = useAuth();
+  const { user, login, authError, clearAuthError } = useAuth();
 
   // ── Navigation state ───────────────────────────────────────────────────
   const [tab, setTab] = useState('miitit');
@@ -74,6 +74,7 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
 
   function toggleFav(m) {
     const key = EventStore.favKey(m);
@@ -311,6 +312,42 @@ export default function App() {
           )}
         </header>
 
+        {/* ── Auth error banner ─────────────────────────────────────── */}
+        {authError && (
+          <div
+            role="alert"
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
+              background: hexA('#C2483F', 0.1),
+              borderBottom: `1px solid ${hexA('#C2483F', 0.28)}`,
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: '#C2483F',
+            }}
+          >
+            <span style={{ flex: 1 }}>Kirjautuminen epäonnistui. Yritä uudelleen.</span>
+            <button
+              aria-label="Sulje ilmoitus"
+              onClick={clearAuthError}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                color: '#C2483F',
+                opacity: 0.7,
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <IconClose size={18} />
+            </button>
+          </div>
+        )}
+
         {/* ── Screen content ────────────────────────────────────────── */}
         <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {tab === 'miitit' && (
@@ -323,6 +360,10 @@ export default function App() {
               groupBy={groupBy}
               setGroupBy={setGroupBy}
               query={query}
+              onClearSearch={() => {
+                setSearchOpen(false);
+                setQuery('');
+              }}
               showThisWeek
               events={events}
             />
@@ -436,7 +477,24 @@ export default function App() {
             setProfileOpen(false);
             setChatOpen(true);
           }}
+          onEditInForm={(m) => setEditTarget(m)}
         />
+
+        {/* ── Edit meetup sheet ──────────────────────────────────────── */}
+        <Sheet open={!!editTarget} onClose={() => setEditTarget(null)} t={t.card}>
+          <ScreenLisaa
+            key={editTarget?.id}
+            t={t}
+            user={user}
+            editTarget={editTarget}
+            onDone={() => {
+              refresh();
+              setEditTarget(null);
+            }}
+            onCancel={() => setEditTarget(null)}
+            refresh={refresh}
+          />
+        </Sheet>
 
         {/* ── Chat assistant sheet ───────────────────────────────────── */}
         <ChatAssistant t={t} open={chatOpen} onClose={() => setChatOpen(false)} refresh={refresh} />
