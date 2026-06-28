@@ -3,12 +3,15 @@
  *
  * Displays:
  *  - User identity (avatar + @username + link to Threads profile)
+ *  - Kaupunki-ilmoitukset: city notification subscription picker
  *  - Suosikit: meetups the user has favourited
  *  - Miittini: meetups the user added while logged in (addedBy.username match),
  *    each with a delete button
  *  - Kirjaudu ulos button
  */
 
+import { useState } from 'react';
+import { CITIES } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { MeetupCard, Sheet, hexA } from './ui.jsx';
@@ -16,7 +19,7 @@ import { IconArrowUpRight, IconClose } from './icons.jsx';
 
 /**
  * @param {object} props - Props: open, onClose, t (theme), favs (Set), events, onOpen, onDelete,
- *   onOpenChat, onEditInForm.
+ *   onOpenChat, onEditInForm, notifPref, onSubscribeCity, onUnsubscribeCity.
  * @returns {React.ReactElement}
  */
 export function ProfileSheet({
@@ -29,6 +32,9 @@ export function ProfileSheet({
   onDelete,
   onOpenChat,
   onEditInForm,
+  notifPref,
+  onSubscribeCity,
+  onUnsubscribeCity,
 }) {
   const { user, logout } = useAuth();
   if (!user) return null;
@@ -140,6 +146,17 @@ export function ProfileSheet({
           </button>
         </div>
 
+        {/* ── Kaupunki-ilmoitukset ───────────────────────────────── */}
+        <Section label="Kaupunki-ilmoitukset" tc={tc}>
+          <CityNotifPicker
+            key={notifPref?.cityKey ?? 'none'}
+            notifPref={notifPref}
+            onSubscribe={onSubscribeCity}
+            onUnsubscribe={onUnsubscribeCity}
+            tc={tc}
+          />
+        </Section>
+
         {/* ── Suosikit ───────────────────────────────────────────── */}
         <Section label={`Suosikit${favourited.length ? ` (${favourited.length})` : ''}`} tc={tc}>
           {favourited.length === 0 ? (
@@ -235,6 +252,84 @@ export function ProfileSheet({
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * City notification subscription picker.
+ * Shows the subscribed city when one is active, or a selector to choose one.
+ * @param {object} props
+ * @param {{ cityKey: string, seenKeys: string[] } | null} props.notifPref
+ * @param {Function} props.onSubscribe - Called with cityKey when user saves.
+ * @param {Function} props.onUnsubscribe - Called when user removes the subscription.
+ * @param {object} props.tc - Card theme tokens.
+ * @returns {React.ReactElement}
+ */
+function CityNotifPicker({ notifPref, onSubscribe, onUnsubscribe, tc }) {
+  const [selectedKey, setSelectedKey] = useState('');
+
+  if (notifPref) {
+    const cityRecord = CITIES.find((c) => c.key === notifPref.cityKey);
+    const displayName = cityRecord?.short ?? notifPref.cityKey;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontSize: 13.5, color: tc.ink, lineHeight: 1.5 }}>
+          Ilmoitukset kaupungista: <strong>{displayName}</strong>
+        </div>
+        <p style={{ fontSize: 12.5, color: tc.inkSoft, margin: 0, lineHeight: 1.5 }}>
+          Näet ilmoituksen sovelluksessa, kun kaupunkiisi lisätään uusia miittejä.
+        </p>
+        <button onClick={onUnsubscribe} style={actionBtn(tc, true)}>
+          Poista ilmoitus
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p style={{ fontSize: 12.5, color: tc.inkSoft, margin: 0, lineHeight: 1.5 }}>
+        Valitse kaupunkisi saadaksesi ilmoituksen, kun sinne lisätään uusia miittejä.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select
+          value={selectedKey}
+          onChange={(e) => setSelectedKey(e.target.value)}
+          aria-label="Valitse kaupunki ilmoituksille"
+          style={{
+            flex: 1,
+            padding: '9px 10px',
+            borderRadius: 8,
+            border: `1px solid ${tc.line}`,
+            background: tc.surface,
+            color: selectedKey ? tc.ink : tc.inkSoft,
+            fontSize: 14,
+            fontFamily: 'inherit',
+            fontWeight: 500,
+            cursor: 'pointer',
+            outline: 'none',
+          }}
+        >
+          <option value="">Valitse kaupunki…</option>
+          {CITIES.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.short}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => selectedKey && onSubscribe(selectedKey)}
+          disabled={!selectedKey}
+          style={{
+            ...actionBtn(tc, false),
+            opacity: selectedKey ? 1 : 0.45,
+            cursor: selectedKey ? 'pointer' : 'default',
+          }}
+        >
+          Tallenna
+        </button>
+      </div>
+    </div>
   );
 }
 

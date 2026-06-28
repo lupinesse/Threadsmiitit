@@ -6,8 +6,8 @@
 
 import { CITIES, DH } from '../data.js';
 import EventStore from '../store/EventStore.js';
-import { catColor, cityName, MeetupCard, CatTag, Pill } from '../components/ui.jsx';
-import { IconCalendar, IconPin, IconSpark } from '../components/icons.jsx';
+import { catColor, cityName, hexA, MeetupCard, CatTag, Pill } from '../components/ui.jsx';
+import { IconBell, IconCalendar, IconClose, IconPin, IconSpark } from '../components/icons.jsx';
 
 /**
  * Wide horizontal card for the "Tällä viikolla" rail.
@@ -101,6 +101,9 @@ function WeekCard({ m, t, onClick }) {
  *
  * @param {object} props
  * @param {Function} [props.onClearSearch] - Called when the user wants to clear an active search.
+ * @param {{ count: number, cityKey: string } | null} [props.notification] - Active city notification.
+ * @param {Function} [props.onDismissNotification] - Called when the user dismisses the notification.
+ * @param {Function} [props.onViewNotificationCity] - Called when the user clicks "Näytä" to filter by city.
  */
 export function ScreenMiitit({
   t,
@@ -114,6 +117,9 @@ export function ScreenMiitit({
   onClearSearch,
   showThisWeek = true,
   events,
+  notification,
+  onDismissNotification,
+  onViewNotificationCity,
 }) {
   const upcoming = events
     .filter((m) => DH.isUpcoming(m.date))
@@ -155,6 +161,72 @@ export function ScreenMiitit({
 
   return (
     <div>
+      {/* City notification banner */}
+      {notification && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            margin: '12px 20px 4px',
+            padding: '10px 12px',
+            borderRadius: t.card.radius,
+            border: `1px solid ${hexA(t.brand, 0.3)}`,
+            background: hexA(t.brand, 0.08),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <span style={{ color: t.brand, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            <IconBell size={17} sw={2} />
+          </span>
+          <span
+            style={{
+              flex: 1,
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: t.ink,
+              lineHeight: 1.35,
+            }}
+          >
+            {notification.count === 1 ? '1 uusi miitti' : `${notification.count} uutta miittiä`}
+            {' — '}
+            {cityName(notification.cityKey)}
+          </span>
+          <button
+            onClick={onViewNotificationCity}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '6px 12px',
+              borderRadius: t.card.radiusPill,
+              fontSize: 12.5,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              background: t.brand,
+              color: t.brandInk,
+              flexShrink: 0,
+            }}
+          >
+            Näytä
+          </button>
+          <button
+            aria-label="Sulje ilmoitus"
+            onClick={onDismissNotification}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              color: t.inkSoft,
+              flexShrink: 0,
+            }}
+          >
+            <IconClose size={18} />
+          </button>
+        </div>
+      )}
+
       {/* Tällä viikolla rail */}
       {showThisWeek && cityFilter === 'all' && !query && thisWeek.length > 0 && (
         <div style={{ padding: '4px 0 18px' }}>
