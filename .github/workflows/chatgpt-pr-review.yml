@@ -138,14 +138,28 @@ jobs:
               : `Below both thresholds (${fileCount} files, ${totalLines} lines) — skipping.`);
             core.setOutput('should_run', String(meetsThreshold));
 
-      - name: Check out repository
+      - name: Check required secrets
+        id: check-secrets
         if: steps.gate.outputs.should_run == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CHATGPT_APP_ID: ${{ secrets.CHATGPT_REVIEWER_APP_ID }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$CHATGPT_APP_ID" ]; then
+            echo "::warning::OPENAI_API_KEY or CHATGPT_REVIEWER_APP_ID not configured — skipping ChatGPT review."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out repository
+        if: steps.check-secrets.outputs.ok == 'true'
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Write diff
-        if: steps.gate.outputs.should_run == 'true'
+        if: steps.check-secrets.outputs.ok == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -157,20 +171,20 @@ jobs:
 
       - name: Mint ChatGPT Reviewer App token
         id: chatgpt-token
-        if: steps.gate.outputs.should_run == 'true'
+        if: steps.check-secrets.outputs.ok == 'true'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ secrets.CHATGPT_REVIEWER_APP_ID }}
           private-key: ${{ secrets.CHATGPT_REVIEWER_PRIVATE_KEY }}
 
       - name: Set up Node.js
-        if: always() && steps.gate.outputs.should_run == 'true'
+        if: always() && steps.check-secrets.outputs.ok == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '24'
 
       - name: Code Review with ChatGPT
-        if: always() && steps.gate.outputs.should_run == 'true'
+        if: always() && steps.check-secrets.outputs.ok == 'true'
         env:
           OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN:      ${{ steps.chatgpt-token.outputs.token || github.token }}
