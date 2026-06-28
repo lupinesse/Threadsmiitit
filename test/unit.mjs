@@ -388,3 +388,101 @@ describe('EventStore canonicalKunta', () => {
     assert.strictEqual(EventStore.canonicalKunta('tamper'), 'Tampere');
   });
 });
+
+// ── NotificationStore ────────────────────────────────────────────────────────
+
+const NotificationStore = (await import('../src/store/NotificationStore.js')).default;
+
+/** Seed events fixture for notification tests. */
+const NOTIF_SEED = [
+  { city: 'helsinki', title: 'Miitti A', date: '2026-08-01', url: '' },
+  { city: 'helsinki', title: 'Miitti B', date: '2026-08-05', url: '' },
+  { city: 'tampere', title: 'Tampere-miitti', date: '2026-08-10', url: '' },
+];
+
+describe('NotificationStore.getNewMeetups', () => {
+  it('returns empty array when pref is null', () => {
+    const result = NotificationStore.getNewMeetups(NOTIF_SEED, null);
+    assert.deepStrictEqual(result, []);
+  });
+
+  it('returns all city meetups when seenKeys is empty', () => {
+    const pref = { cityKey: 'helsinki', seenKeys: [] };
+    const result = NotificationStore.getNewMeetups(NOTIF_SEED, pref);
+    assert.strictEqual(result.length, 2);
+  });
+
+  it('returns only unseen meetups', () => {
+    const seenKey = EventStore.favKey(NOTIF_SEED[0]);
+    const pref = { cityKey: 'helsinki', seenKeys: [seenKey] };
+    const result = NotificationStore.getNewMeetups(NOTIF_SEED, pref);
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].title, 'Miitti B');
+  });
+
+  it('returns empty array when all city meetups are seen', () => {
+    const seenKeys = NOTIF_SEED.filter((m) => m.city === 'helsinki').map((m) =>
+      EventStore.favKey(m)
+    );
+    const pref = { cityKey: 'helsinki', seenKeys };
+    const result = NotificationStore.getNewMeetups(NOTIF_SEED, pref);
+    assert.deepStrictEqual(result, []);
+  });
+
+  it('ignores meetups from other cities', () => {
+    const pref = { cityKey: 'oulu', seenKeys: [] };
+    const result = NotificationStore.getNewMeetups(NOTIF_SEED, pref);
+    assert.deepStrictEqual(result, []);
+  });
+});
+
+describe('NotificationStore.setPreference', () => {
+  it('marks all current city meetups as seen on subscribe', () => {
+    // Clear any prior state.
+    NotificationStore.clearPreference();
+    NotificationStore.setPreference('helsinki', NOTIF_SEED);
+    const pref = NotificationStore.getPreference();
+    assert.ok(pref, 'preference should be set');
+    assert.strictEqual(pref.cityKey, 'helsinki');
+    // Both helsinki meetups should be in seenKeys.
+    const newMeetups = NotificationStore.getNewMeetups(NOTIF_SEED, pref);
+    assert.deepStrictEqual(newMeetups, []);
+  });
+
+  it('returns new meetups added after subscribe', () => {
+    NotificationStore.clearPreference();
+    NotificationStore.setPreference('helsinki', NOTIF_SEED);
+    const pref = NotificationStore.getPreference();
+    // A new meetup that was not in NOTIF_SEED at subscribe time.
+    const extendedEvents = [
+      ...NOTIF_SEED,
+      { city: 'helsinki', title: 'Uusi miitti', date: '2026-09-01', url: '' },
+    ];
+    const newMeetups = NotificationStore.getNewMeetups(extendedEvents, pref);
+    assert.strictEqual(newMeetups.length, 1);
+    assert.strictEqual(newMeetups[0].title, 'Uusi miitti');
+  });
+});
+
+describe('NotificationStore.markSeen', () => {
+  it('clears new meetups after markSeen', () => {
+    NotificationStore.clearPreference();
+    NotificationStore.setPreference('helsinki', []);
+    const extended = [...NOTIF_SEED];
+    // Before markSeen: two unseen helsinki meetups.
+    const prefBefore = NotificationStore.getPreference();
+    assert.strictEqual(NotificationStore.getNewMeetups(extended, prefBefore).length, 2);
+    // After markSeen: no unseen meetups.
+    NotificationStore.markSeen(extended);
+    const prefAfter = NotificationStore.getPreference();
+    assert.strictEqual(NotificationStore.getNewMeetups(extended, prefAfter).length, 0);
+  });
+});
+
+describe('NotificationStore.clearPreference', () => {
+  it('returns null after clear', () => {
+    NotificationStore.setPreference('tampere', NOTIF_SEED);
+    NotificationStore.clearPreference();
+    assert.strictEqual(NotificationStore.getPreference(), null);
+  });
+});

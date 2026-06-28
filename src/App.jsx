@@ -10,6 +10,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
+import NotificationStore from './store/NotificationStore.js';
 import { MeetupDetail, Sheet, hexA } from './components/ui.jsx';
 import { ProfileSheet } from './components/ProfileSheet.jsx';
 import { ChatAssistant } from './components/ChatAssistant.jsx';
@@ -75,6 +76,33 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+
+  // ── City notifications ─────────────────────────────────────────────
+  const [notifPref, setNotifPref] = useState(() => NotificationStore.getPreference());
+  const newMeetups = useMemo(
+    () => NotificationStore.getNewMeetups(events, notifPref),
+    [events, notifPref]
+  );
+
+  function subscribeCity(cityKey) {
+    NotificationStore.setPreference(cityKey, events);
+    setNotifPref(NotificationStore.getPreference());
+  }
+
+  function unsubscribeCity() {
+    NotificationStore.clearPreference();
+    setNotifPref(null);
+  }
+
+  function dismissNotification() {
+    NotificationStore.markSeen(events);
+    setNotifPref(NotificationStore.getPreference());
+  }
+
+  function viewNotificationCity() {
+    if (notifPref) setCityFilter(notifPref.cityKey);
+    dismissNotification();
+  }
 
   function toggleFav(m) {
     const key = EventStore.favKey(m);
@@ -366,6 +394,13 @@ export default function App() {
               }}
               showThisWeek
               events={events}
+              notification={
+                newMeetups.length > 0 && notifPref
+                  ? { count: newMeetups.length, cityKey: notifPref.cityKey }
+                  : null
+              }
+              onDismissNotification={dismissNotification}
+              onViewNotificationCity={viewNotificationCity}
             />
           )}
           {tab === 'kalenteri' && (
@@ -478,6 +513,9 @@ export default function App() {
             setChatOpen(true);
           }}
           onEditInForm={(m) => setEditTarget(m)}
+          notifPref={notifPref}
+          onSubscribeCity={subscribeCity}
+          onUnsubscribeCity={unsubscribeCity}
         />
 
         {/* ── Edit meetup sheet ──────────────────────────────────────── */}
