@@ -8,3 +8,15 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Rate limiting for the AI chat proxy (requires Netlify Pro or higher).
+# Denies requests from a single IP that exceed 30 requests per 60 seconds.
+# Verify the exact syntax against https://docs.netlify.com/security/secure-access-to-sites/traffic-rules/
+# before deploying if upgrading from a Starter plan.
+[[edge_rules]]
+  for = { path = "/api/chat" }
+  [edge_rules.rate_limit]
+    action = "deny"
+    aggregate_by = ["ip"]
+    window_size = 60
+    rate = 30

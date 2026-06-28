@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { validatePrompt } from './netlify/functions/lib/validate-chat-request.mjs';
 
 /**
  * Vite server-side middleware that proxies /api/chat to the Anthropic API.
@@ -25,7 +26,14 @@ function chatApiPlugin() {
         req.on('end', async () => {
           res.setHeader('Content-Type', 'application/json');
           try {
-            const { prompt } = JSON.parse(body);
+            const parsed = JSON.parse(body);
+            const promptResult = validatePrompt(parsed?.prompt);
+            if (!promptResult.ok) {
+              res.statusCode = promptResult.status;
+              res.end(JSON.stringify({ error: promptResult.error }));
+              return;
+            }
+            const { prompt } = parsed;
             const apiKey = process.env.ANTHROPIC_API_KEY;
 
             if (!apiKey) {

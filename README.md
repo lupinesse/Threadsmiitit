@@ -2,7 +2,7 @@
 
 Finnish community meetup calendar — aggregates Threads-posted meetups across Finnish cities into one read-only calendar that links back to the original posts for sign-up. Volunteer-run, all UI copy in Finnish.
 
-**Live:** https://lupinesse.github.io/Threadsmiitit/
+**Live:** https://threadsmiitit.netlify.app/
 
 ## Screenshots
 
@@ -52,7 +52,11 @@ export ANTHROPIC_API_KEY="sk-ant-..."    # bash/zsh
 npm run dev
 ```
 
-The key is read **server-side** only by Vite's dev middleware — it is never exposed in the browser bundle. For production, replace the `/api/chat` route with your own authenticated backend.
+The key is read **server-side** only — never exposed in the browser bundle. In production, the Netlify Function at `netlify/functions/chat.js` handles the route and enforces:
+
+- **Origin check** — only requests from the deployed site's origin are accepted (set `ALLOWED_ORIGIN` in Netlify environment variables; defaults to `https://threadsmiitit.netlify.app`).
+- **Body validation** — prompt must be a non-empty string ≤ 4 000 characters.
+- **Rate limiting** — 30 requests per 60 s per IP via Netlify edge rules (requires Netlify Pro or higher; configured in `netlify.toml`).
 
 ### Build
 

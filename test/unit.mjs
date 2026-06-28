@@ -486,3 +486,98 @@ describe('NotificationStore.clearPreference', () => {
     assert.strictEqual(NotificationStore.getPreference(), null);
   });
 });
+
+// ── validate-chat-request ────────────────────────────────────────────────────
+
+import {
+  normaliseOrigin,
+  isOriginAllowed,
+  validatePrompt,
+  MAX_PROMPT_LENGTH,
+} from '../netlify/functions/lib/validate-chat-request.mjs';
+
+describe('normaliseOrigin', () => {
+  it('returns bare origin from a plain origin header', () => {
+    assert.strictEqual(normaliseOrigin('https://example.com'), 'https://example.com');
+  });
+
+  it('strips trailing slash', () => {
+    assert.strictEqual(normaliseOrigin('https://example.com/'), 'https://example.com');
+  });
+
+  it('strips path from a Referer header', () => {
+    assert.strictEqual(normaliseOrigin('https://example.com/some/page'), 'https://example.com');
+  });
+
+  it('returns empty string for null', () => {
+    assert.strictEqual(normaliseOrigin(null), '');
+  });
+
+  it('returns empty string for undefined', () => {
+    assert.strictEqual(normaliseOrigin(undefined), '');
+  });
+});
+
+describe('isOriginAllowed', () => {
+  const ALLOWED = 'https://threadsmiitit.netlify.app';
+
+  it('allows a matching Origin header', () => {
+    assert.strictEqual(isOriginAllowed(ALLOWED, null, ALLOWED), true);
+  });
+
+  it('allows a matching Referer header when Origin is absent', () => {
+    assert.strictEqual(isOriginAllowed(null, `${ALLOWED}/`, ALLOWED), true);
+  });
+
+  it('denies a different origin', () => {
+    assert.strictEqual(isOriginAllowed('https://attacker.example', null, ALLOWED), false);
+  });
+
+  it('denies when both headers are absent', () => {
+    assert.strictEqual(isOriginAllowed(null, null, ALLOWED), false);
+  });
+
+  it('bypasses check when isNetlifyDev is true', () => {
+    assert.strictEqual(isOriginAllowed(null, null, ALLOWED, true), true);
+  });
+});
+
+describe('validatePrompt', () => {
+  it('accepts a normal string', () => {
+    assert.deepStrictEqual(validatePrompt('Hello'), { ok: true });
+  });
+
+  it('rejects undefined', () => {
+    const result = validatePrompt(undefined);
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 400);
+  });
+
+  it('rejects a number', () => {
+    const result = validatePrompt(42);
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 400);
+  });
+
+  it('rejects an empty string', () => {
+    const result = validatePrompt('');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 400);
+  });
+
+  it('rejects a whitespace-only string', () => {
+    const result = validatePrompt('   ');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 400);
+  });
+
+  it('accepts a string exactly at the limit', () => {
+    assert.deepStrictEqual(validatePrompt('a'.repeat(MAX_PROMPT_LENGTH)), { ok: true });
+  });
+
+  it('rejects a string one character over the limit', () => {
+    const result = validatePrompt('a'.repeat(MAX_PROMPT_LENGTH + 1));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 413);
+  });
+});
