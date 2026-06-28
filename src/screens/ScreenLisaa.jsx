@@ -1,18 +1,19 @@
 /**
- * @fileoverview Lisää miitti screen — 4-step guided form for adding a meetup.
+ * @fileoverview Lisää / Muokkaa miitti screen — 4-step guided form.
  * Step 0: title + date.
  * Step 1: city (pills or municipality autocomplete) + category.
  * Step 2: organizer handle + Threads post URL (validated).
  * Step 3: live preview card → submit.
  *
- * Also shows an "add via chat" shortcut at the top.
+ * When `editTarget` is supplied the form pre-fills from the existing meetup and
+ * calls EventStore.edit() instead of EventStore.add() on submit.
  */
 
 import { useState } from 'react';
 import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
-import { hexA, MeetupCard, Pill } from '../components/ui.jsx';
+import { hexA, cityName, MeetupCard, Pill } from '../components/ui.jsx';
 import {
   IconSpark,
   IconCheck,
@@ -188,15 +189,38 @@ function CityAutocomplete({ t, value, onChange }) {
 }
 
 /**
- * Lisää miitti screen — guided 4-step form with a chat shortcut at the top.
+ * Lisää / Muokkaa miitti screen — guided 4-step form.
  *
  * @param {object} props
+ * @param {object} [props.editTarget] - Existing meetup to pre-fill and edit. When supplied the
+ *   form calls EventStore.edit() on submit instead of EventStore.add().
+ * @param {Function} [props.onCancel] - Called when the user cancels without saving (edit mode).
  */
-export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
+export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, onCancel }) {
+  const isEdit = !!editTarget;
+
+  // Determine whether editTarget's city is a built-in (non-custom) entry so we
+  // can decide whether to show pills (built-in) or the autocomplete (custom).
+  const editCityIsBuiltIn = isEdit
+    ? !!CITIES.find((c) => !c.custom && c.key === editTarget.city)
+    : false;
+
   const [step, setStep] = useState(0);
-  const [f, setF] = useState({ title: '', city: '', cat: '', date: '', org: '', url: '' });
+  const [f, setF] = useState(() => {
+    if (!editTarget) return { title: '', city: '', cat: '', date: '', org: '', url: '' };
+    return {
+      title: editTarget.title ?? '',
+      city: editCityIsBuiltIn
+        ? (editTarget.city ?? '')
+        : cityName(editTarget.city) || editTarget.city || '',
+      cat: editTarget.cat ?? '',
+      date: editTarget.date ?? '',
+      org: (editTarget.org ?? []).join(', '),
+      url: editTarget.url ?? '',
+    };
+  });
   const [saved, setSaved] = useState(null);
-  const [customCity, setCustomCity] = useState(false);
+  const [customCity, setCustomCity] = useState(isEdit && !editCityIsBuiltIn);
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
@@ -213,6 +237,14 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
           : true;
 
   function submit() {
+    if (isEdit) {
+      const ev = EventStore.edit(editTarget.id, f);
+      if (ev) {
+        setSaved(ev);
+        refresh?.();
+      }
+      return;
+    }
     const payload = user
       ? {
           ...f,
@@ -229,7 +261,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
     refresh?.();
   }
 
-  // ── Success view ────────────────────────────────────────────────────────
+  // ── Success view ────────────────────────────────────────────────────────────
   if (saved) {
     return (
       <div style={{ padding: '12px 20px 28px' }}>
@@ -259,68 +291,73 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
               letterSpacing: t.headSpacing,
             }}
           >
-            Miitti lisätty! 🎉
+            {isEdit ? 'Miitti päivitetty! ✅' : 'Miitti lisätty! 🎉'}
           </h2>
           <p style={{ margin: 0, fontSize: 13.5, color: t.inkSoft, lineHeight: 1.5 }}>
-            Se näkyy nyt kalenterissa ja listassa.
+            {isEdit ? 'Muutokset tallennettu.' : 'Se näkyy nyt kalenterissa ja listassa.'}
           </p>
         </div>
 
-        <div
-          style={{
-            padding: 16,
-            borderRadius: t.radius,
-            background: hexA(t.brand, 0.07),
-            border: `1px solid ${hexA(t.brand, 0.22)}`,
-            marginBottom: 16,
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 12, color: t.inkSoft, fontWeight: 600, marginBottom: 6 }}>
-            Miittisi tunniste
-          </div>
+        {!isEdit && (
           <div
             style={{
-              fontSize: 30,
-              fontWeight: 800,
-              fontFamily: 'ui-monospace, monospace',
-              color: t.brand,
-              letterSpacing: '0.08em',
+              padding: 16,
+              borderRadius: t.radius,
+              background: hexA(t.brand, 0.07),
+              border: `1px solid ${hexA(t.brand, 0.22)}`,
+              marginBottom: 16,
+              textAlign: 'center',
             }}
           >
-            #{saved.id}
+            <div style={{ fontSize: 12, color: t.inkSoft, fontWeight: 600, marginBottom: 6 }}>
+              Miittisi tunniste
+            </div>
+            <div
+              style={{
+                fontSize: 30,
+                fontWeight: 800,
+                fontFamily: 'ui-monospace, monospace',
+                color: t.brand,
+                letterSpacing: '0.08em',
+              }}
+            >
+              #{saved.id}
+            </div>
+            <div style={{ fontSize: 12.5, color: t.inkSoft, marginTop: 8, lineHeight: 1.5 }}>
+              Säilytä tämä — sillä voit{' '}
+              <strong style={{ color: t.ink }}>muokata tai poistaa</strong> miitin apurin kautta.
+              Esim. &ldquo;poista #{saved.id}&rdquo;.
+            </div>
           </div>
-          <div style={{ fontSize: 12.5, color: t.inkSoft, marginTop: 8, lineHeight: 1.5 }}>
-            Säilytä tämä — sillä voit <strong style={{ color: t.ink }}>muokata tai poistaa</strong>{' '}
-            miitin apurin kautta. Esim. &ldquo;poista #{saved.id}&rdquo;.
-          </div>
-        </div>
+        )}
 
         <div style={{ pointerEvents: 'none', marginBottom: 18 }}>
           <MeetupCard t={t.card} fav={false} m={saved} onClick={() => {}} />
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={() => onOpenChat?.()}
-            style={{
-              all: 'unset',
-              cursor: 'pointer',
-              boxSizing: 'border-box',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 7,
-              padding: '14px 18px',
-              borderRadius: t.radiusPill,
-              border: `1px solid ${t.line}`,
-              color: t.ink,
-              fontWeight: 600,
-              fontSize: 14.5,
-              fontFamily: 'inherit',
-            }}
-          >
-            <IconSpark size={18} /> Hallitse apurilla
-          </button>
+          {!isEdit && (
+            <button
+              onClick={() => onOpenChat?.()}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '14px 18px',
+                borderRadius: t.radiusPill,
+                border: `1px solid ${t.line}`,
+                color: t.ink,
+                fontWeight: 600,
+                fontSize: 14.5,
+                fontFamily: 'inherit',
+              }}
+            >
+              <IconSpark size={18} /> Hallitse apurilla
+            </button>
+          )}
           <button
             onClick={() => onDone()}
             style={{
@@ -345,11 +382,11 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
     );
   }
 
-  // ── Form ─────────────────────────────────────────────────────────────────
+  // ── Form ─────────────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: '4px 20px 28px' }}>
-      {/* Chat shortcut — shown only on step 0 */}
-      {step === 0 && (
+      {/* Chat shortcut — shown only on step 0 in add mode */}
+      {step === 0 && !isEdit && (
         <>
           <button
             onClick={() => onOpenChat?.()}
@@ -626,7 +663,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
               Näin se näyttää!
             </h2>
             <p style={{ margin: 0, fontSize: 13.5, color: t.inkSoft, lineHeight: 1.5 }}>
-              Tarkista esikatselu ja lähetä.
+              {isEdit ? 'Tarkista muutokset ja tallenna.' : 'Tarkista esikatselu ja lähetä.'}
             </p>
           </div>
           <div style={{ pointerEvents: 'none', marginBottom: 18 }}>
@@ -649,7 +686,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
 
       {/* Navigation */}
       <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-        {step > 0 && (
+        {step > 0 ? (
           <button
             onClick={() => setStep(step - 1)}
             style={{
@@ -667,7 +704,25 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
           >
             Takaisin
           </button>
-        )}
+        ) : isEdit && onCancel ? (
+          <button
+            onClick={onCancel}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              padding: '14px 20px',
+              borderRadius: t.radiusPill,
+              border: `1px solid ${t.line}`,
+              color: t.inkSoft,
+              fontWeight: 600,
+              fontSize: 14.5,
+              fontFamily: 'inherit',
+            }}
+          >
+            Peruuta
+          </button>
+        ) : null}
         <button
           disabled={!canNext}
           onClick={() => (step < 3 ? setStep(step + 1) : submit())}
@@ -686,7 +741,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh }) {
             fontFamily: 'inherit',
           }}
         >
-          {step < 3 ? 'Jatka' : 'Lähetä miitti'}
+          {step < 3 ? 'Jatka' : isEdit ? 'Tallenna muutokset' : 'Lähetä miitti'}
         </button>
       </div>
     </div>

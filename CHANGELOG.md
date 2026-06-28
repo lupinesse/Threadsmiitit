@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- In-app edit form: "Muokkaa lomakkeella" button in ProfileSheet opens the existing 4-step form pre-filled with the meetup's current data. Calls `EventStore.edit()` on submit; cancel closes the sheet without saving.
+- Copy-URL button: a clipboard icon in the meetup detail sheet copies the Threads post URL. Shows a check icon for 2 seconds to confirm.
+- Auth error banner: a dismissible strip appears at the top of the screen when Threads OAuth returns `#auth=error`. `AuthContext` exposes `authError` + `clearAuthError()`.
+- Contextual search empty state: when a keyword search returns no results the screen shows "Ei tuloksia haulle '…'" and a "Tyhjennä haku" link. The meetup count label also changes to "X tulosta" during an active search.
+
+## [0.4.0] — 2026-06-28
+
+### Added
 - `netlify.toml`: build config pointing to `dist/`, Netlify Functions at `netlify/functions/`, and a SPA fallback redirect so React Router routes resolve correctly.
 - `netlify/functions/chat.js`: Netlify Functions v2 handler proxying `/api/chat` to the Anthropic API — keeps `ANTHROPIC_API_KEY` out of the browser bundle and makes the Miitti-apuri AI assistant work in production.
 - Threads OAuth login: users can sign in with their Threads account. A "Kirjaudu" button appears in the header; after OAuth the session is stored in `localStorage`.
@@ -21,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `vite.config.js`: simplified `base` to always `'/'`; removed the `GITHUB_REPOSITORY`-derived `pagesBase` variable that was only needed for GitHub Pages sub-path deployments.
+- Deployment platform migrated from GitHub Pages to Netlify.
 
 ### Removed
 - `.github/workflows/deploy.yml`: GitHub Pages deployment workflow no longer needed.

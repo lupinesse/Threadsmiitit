@@ -3,6 +3,7 @@
  * and colour helper utilities used across all screens.
  */
 
+import { useState } from 'react';
 import { CATEGORIES, CITIES, MONTHS_FI, DH } from '../data.js';
 import {
   IconChevron,
@@ -14,6 +15,8 @@ import {
   IconSpark,
   IconThreads,
   IconClose,
+  IconCheck,
+  IconCopy,
 } from './icons.jsx';
 
 // ── Colour utilities ────────────────────────────────────────────────────────
@@ -315,6 +318,49 @@ export function MeetupCard({ m, t, onClick, dim = false, fav: _fav = false }) {
 // ── Meetup detail content (used inside a Sheet from App) ────────────────────
 
 /**
+ * Icon button that copies a URL to the clipboard.
+ * Shows a check icon for 2 seconds after a successful copy.
+ * @param {object} props - Props: url (string), t (theme).
+ */
+function CopyButton({ url, t }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
+  }
+
+  return (
+    <button
+      aria-label={copied ? 'Linkki kopioitu' : 'Kopioi Threads-postauksen linkki'}
+      onClick={handleCopy}
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        boxSizing: 'border-box',
+        width: 52,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: t.radiusPill,
+        border: `1px solid ${copied ? t.brand : t.line}`,
+        color: copied ? t.brand : t.ink,
+        background: copied ? hexA(t.brand, 0.1) : t.surface,
+        transition: 'color 0.18s, border-color 0.18s',
+        flexShrink: 0,
+      }}
+    >
+      {copied ? <IconCheck size={20} sw={2.4} /> : <IconCopy size={18} />}
+    </button>
+  );
+}
+
+/**
  * A labelled detail row with an icon, primary text, and optional subtitle.
  * @param {object} props - Props: icon (ReactNode), label (string), sub (string, optional), t (theme).
  */
@@ -595,6 +641,7 @@ export function MeetupDetail({ m, t, fav, onFav, onClose }) {
             Ei Threads-linkkiä
           </div>
         )}
+        {hasPost && <CopyButton url={m.url} t={t} />}
         <button
           aria-label={fav ? 'Poista suosikeista' : 'Lisää suosikiksi'}
           aria-pressed={fav}

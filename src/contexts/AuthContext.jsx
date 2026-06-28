@@ -29,13 +29,17 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     const hash = window.location.hash;
     if (!hash.startsWith('#auth=')) return;
     const encoded = hash.slice(6);
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    if (encoded === 'error') return;
+    if (encoded === 'error') {
+      setAuthError(true);
+      return;
+    }
     try {
       const parsed = JSON.parse(atob(encoded));
       setUser(parsed);
@@ -56,7 +60,16 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
+  /** Dismisses the OAuth error banner. */
+  function clearAuthError() {
+    setAuthError(false);
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, login, logout, authError, clearAuthError }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 /**

@@ -15,10 +15,21 @@ import { MeetupCard, Sheet, hexA } from './ui.jsx';
 import { IconArrowUpRight, IconClose } from './icons.jsx';
 
 /**
- * @param {object} props - Props: open, onClose, t (theme), favs (Set), events, onOpen, onDelete, onOpenChat.
+ * @param {object} props - Props: open, onClose, t (theme), favs (Set), events, onOpen, onDelete,
+ *   onOpenChat, onEditInForm.
  * @returns {React.ReactElement}
  */
-export function ProfileSheet({ open, onClose, t, favs, events, onOpen, onDelete, onOpenChat }) {
+export function ProfileSheet({
+  open,
+  onClose,
+  t,
+  favs,
+  events,
+  onOpen,
+  onDelete,
+  onOpenChat,
+  onEditInForm,
+}) {
   const { user, logout } = useAuth();
   if (!user) return null;
 
@@ -167,7 +178,18 @@ export function ProfileSheet({ open, onClose, t, favs, events, onOpen, onDelete,
                       onOpen(m);
                     }}
                   />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                    {onEditInForm && (
+                      <button
+                        onClick={() => {
+                          onClose();
+                          onEditInForm(m);
+                        }}
+                        style={actionBtn(tc, false)}
+                      >
+                        Muokkaa lomakkeella
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         onClose();
