@@ -518,9 +518,9 @@ export function MeetupDetail({ m, t, fav, onFav, onClose }) {
               {m.org.length > 1 ? 'Järjestäjät' : 'Järjestäjä'}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 5 }}>
-              {m.org.map((h, i) => (
+              {m.org.map((h) => (
                 <a
-                  key={i}
+                  key={h}
                   href={profile(h)}
                   target="_blank"
                   rel="noopener noreferrer"

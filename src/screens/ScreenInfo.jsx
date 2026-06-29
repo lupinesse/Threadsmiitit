@@ -89,8 +89,8 @@ function SubMenneet({ t, onOpen, onBack, events }) {
           <Empty t={t} text="Ei vielä mennyttä — kausi on vasta alussa!" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {past.map((m, i) => (
-              <MeetupCard key={i} m={m} t={t.card} onClick={() => onOpen(m)} dim fav={false} />
+            {past.map((m) => (
+              <MeetupCard key={m.id} m={m} t={t.card} onClick={() => onOpen(m)} dim fav={false} />
             ))}
           </div>
         )}
@@ -345,9 +345,9 @@ function SubKaraoke({ t, onBack, events }) {
           <Empty t={t} text="Ei tulevia karaokemiittejä juuri nyt." />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {upcoming.map((m, i) => (
+            {upcoming.map((m) => (
               <div
-                key={i}
+                key={m.id}
                 style={{
                   padding: 14,
                   borderRadius: t.radius,

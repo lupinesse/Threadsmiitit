@@ -266,8 +266,8 @@ export function ScreenMiitit({
               scrollbarWidth: 'none',
             }}
           >
-            {thisWeek.map((m, i) => (
-              <WeekCard key={i} m={m} t={t.card} onClick={() => onOpen(m)} />
+            {thisWeek.map((m) => (
+              <WeekCard key={m.id} m={m} t={t.card} onClick={() => onOpen(m)} />
             ))}
           </div>
         </div>
@@ -416,9 +416,9 @@ export function ScreenMiitit({
               {g.label}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {g.items.map((m, i) => (
+              {g.items.map((m) => (
                 <MeetupCard
-                  key={i}
+                  key={m.id}
                   m={m}
                   t={t.card}
                   onClick={() => onOpen(m)}
