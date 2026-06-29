@@ -66,6 +66,7 @@ export default function App() {
       const raw = localStorage.getItem('threadsmiitit_favs_v1');
       return new Set(raw ? JSON.parse(raw) : []);
     } catch {
+      // localStorage unavailable or corrupted — start with an empty favourites set
       return new Set();
     }
   });
