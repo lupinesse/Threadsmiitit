@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/api/chat` proxy now enforces an Origin/Referer allowlist (set `ALLOWED_ORIGIN` env var; defaults to `https://threadsmiitit.netlify.app`), rejects prompts that are not a non-empty string or exceed 4 000 characters, and configures per-IP rate limiting via Netlify edge rules in `netlify.toml`.
 - Validation logic extracted to `netlify/functions/lib/validate-chat-request.mjs` (unit-tested); dev Vite plugin shares the same prompt validator.
 
+### Fixed
+- `npm test` now runs both `test/unit.mjs` and every `.github/scripts/test/**/*.test.mjs` suite (219 tests across 51 suites). Previously only `test/unit.mjs` was executed, so the CI-script regression suites (empty-comment, misroute, verdict parsing) were silently skipped.
+- Restored missing `.github/scripts/jsdoc-check.mjs` and `.github/scripts/impact-check.mjs` whose functions were tested by `ci-scripts.test.mjs` but had been removed.
+
 ### Added
 - City notification subscription: logged-in users can choose a city in the Profile sheet and receive an in-app notification banner when new meetups are added to that city. Preference is persisted to `localStorage` (`threadsmiitit_city_notif_v1`) as a `{ cityKey, seenKeys }` object so only meetups added after the subscription trigger a banner. The banner appears at the top of the Miitit screen with a "Näytä" button that filters the list by that city and a dismiss button.
 - `src/store/NotificationStore.js`: new module exposing `getPreference`, `setPreference`, `clearPreference`, `markSeen`, and `getNewMeetups` — all covered by unit tests.
