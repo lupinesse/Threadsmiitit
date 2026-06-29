@@ -49,7 +49,7 @@ export function ProfileSheet({
   }
 
   return (
-    <Sheet open={open} onClose={onClose} t={tc}>
+    <Sheet open={open} onClose={onClose} t={tc} label="Profiili">
       <div style={{ padding: '4px 20px 36px' }}>
         {/* ── User header ────────────────────────────────────────── */}
         <div

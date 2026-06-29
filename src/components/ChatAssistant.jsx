@@ -9,6 +9,7 @@
  */
 
 import { Fragment, useState, useRef, useEffect } from 'react';
+import { useDialogA11y } from '../hooks/useDialogA11y.js';
 import { CITIES, CATEGORIES, DH } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { complete } from '../api/claude.js';
@@ -304,6 +305,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
+  const { panelRef } = useDialogA11y({ open, onClose });
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -390,6 +392,11 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
         }}
       />
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Miitti-apuri"
+        tabIndex={-1}
         style={{
           position: 'absolute',
           left: 0,
@@ -405,6 +412,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
           flexDirection: 'column',
           overflow: 'hidden',
           boxShadow: '0 -10px 40px rgba(0,0,0,0.25)',
+          outline: 'none',
         }}
       >
         {/* Header */}

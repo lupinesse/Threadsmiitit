@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/api/chat` proxy now propagates upstream API errors (e.g. 429 Rate Limit, 400 Bad Request) to the client with the real HTTP status code and a descriptive message. Previously a non-2xx response from Anthropic produced `200 {text:""}`, causing the UI to silently show an empty reply.
 - `.github/workflows/pr-review.yml`: restore missing `--allowedTools` flag before the tool allow-list in the "Run PR review" step. Without the flag the tool names were passed as stray positional arguments to `claude -p`, so the intended sandboxing was not applied.
 - `ScreenLisaa` `Field` component: `<label>` elements now have an explicit `htmlFor`/`id` association for text, date, and URL inputs, and button/pill groups use `role="group"` + `aria-labelledby` so assistive technology announces the group name correctly.
+- All bottom-sheet dialogs (`Sheet`, `ChatAssistant`) now carry `role="dialog"`, `aria-modal="true"`, and `aria-label` so screen readers announce them correctly. Escape closes the active sheet; Tab/Shift+Tab stay trapped inside the panel; focus is restored to the triggering element when the sheet closes. Shared logic lives in `src/hooks/useDialogA11y.js`.
 
 ### Changed
 - Shared Anthropic request logic (model name, token limit, fetch, and `upstream.ok` handling) extracted to `netlify/functions/lib/anthropic-proxy.mjs`. Bumping the model or token limit is now a one-file change.
