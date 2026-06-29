@@ -14,6 +14,11 @@
  * - **Rate limiting**: configured via netlify.toml edge rules (per-IP, 30 req
  *   per 60 s). Requires Netlify Pro or higher.
  *
+ * Upstream API errors (e.g. 429 Too Many Requests, 400 Bad Request) are
+ * propagated to the caller with the real status code and a descriptive
+ * message, so the client can surface a meaningful error instead of an empty
+ * reply.
+ *
  * Note: adding per-user authentication (session cookie verification) is a
  * larger change that requires updating auth-callback.js to set a signed,
  * HttpOnly cookie. Raise with the team before implementing.
@@ -22,6 +27,7 @@
  * @returns {Promise<Response>}
  */
 import { isOriginAllowed, validatePrompt } from './lib/validate-chat-request.mjs';
+import { callAnthropic } from './lib/anthropic-proxy.mjs';
 
 /** Allowed request origin — set ALLOWED_ORIGIN in Netlify environment variables. */
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? 'https://threadsmiitit.netlify.app';
@@ -72,32 +78,17 @@ export default async function handler(req) {
     );
   }
 
-  try {
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: body.prompt }],
-      }),
-    });
-
-    const data = await upstream.json();
-    const text = data.content?.[0]?.text ?? '';
-    return new Response(JSON.stringify({ text }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+  const result = await callAnthropic(body.prompt, apiKey);
+  if (!result.ok) {
+    return new Response(JSON.stringify({ error: result.error }), {
+      status: result.status,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+
+  return new Response(JSON.stringify({ text: result.text }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 export const config = { path: '/api/chat' };
