@@ -86,9 +86,10 @@ Runs unit tests (Node's built-in test runner, no extra dependencies).
 | Layer | Choice |
 |---|---|
 | UI | React 18 + inline style props (no CSS-in-JS lib) |
-| Build | Vite 6 + `@vitejs/plugin-react` |
+| Build | Vite 8 + `@vitejs/plugin-react` |
 | Styles | SCSS via sass (global resets only; components use inline styles) |
-| AI | Anthropic Messages API via Vite server middleware |
+| AI | Anthropic Messages API via Netlify Function (`/api/chat`) in production; Vite dev middleware locally |
+| Deploy | Netlify (SPA redirect + Netlify Functions v2) |
 | Storage | localStorage via EventStore |
 | Lint | ESLint + Prettier + Stylelint + commitlint |
 | Tests | Node built-in `node:test` |
