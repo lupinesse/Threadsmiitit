@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `README.md`: corrected live URL to `https://threadsmiitit.netlify.app/`, updated build tool version (Vite 8), noted Netlify Function and Netlify deployment in the tech-stack table, and removed the stale "replace with your own backend" note.
 - `package.json`: bumped version from `0.1.0` to `0.4.0` to match the latest CHANGELOG entry.
 
+### Removed
+- `src/css/_base.scss`: removed render-blocking `@import 'https://fonts.googleapis.com/...'`. Poppins is already loaded non-blocking via `<link media="print" onload>` in `index.html`; the duplicate SCSS import was redundant and caused an extra synchronous network round-trip.
+
 ### Added
 - City notification subscription: logged-in users can choose a city in the Profile sheet and receive an in-app notification banner when new meetups are added to that city. Preference is persisted to `localStorage` (`threadsmiitit_city_notif_v1`) as a `{ cityKey, seenKeys }` object so only meetups added after the subscription trigger a banner. The banner appears at the top of the Miitit screen with a "Näytä" button that filters the list by that city and a dismiss button.
 - `src/store/NotificationStore.js`: new module exposing `getPreference`, `setPreference`, `clearPreference`, `markSeen`, and `getNewMeetups` — all covered by unit tests.
