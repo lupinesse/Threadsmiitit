@@ -199,11 +199,17 @@ export function DateLeaf({ date, cat, t }) {
 
 /**
  * Core meetup card — a tappable row with DateLeaf, category tag, city,
- * title, organizer line, and a chevron.
+ * title, organizer line, and a chevron. Shows a heart badge when the
+ * meetup is in the user's favourites.
  *
- * @param {object} props - Props: m (meetup), t (theme), onClick, dim (boolean), fav (boolean).
+ * @param {object} props
+ * @param {object} props.m - Meetup data object.
+ * @param {object} props.t - Theme token object.
+ * @param {Function} props.onClick - Click handler.
+ * @param {boolean} [props.dim] - Reduces opacity (e.g. for past events).
+ * @param {boolean} [props.fav] - Whether this meetup is favourited.
  */
-export function MeetupCard({ m, t, onClick, dim = false, fav: _fav = false }) {
+export function MeetupCard({ m, t, onClick, dim = false, fav = false }) {
   return (
     <button
       onClick={onClick}
@@ -253,6 +259,19 @@ export function MeetupCard({ m, t, onClick, dim = false, fav: _fav = false }) {
               }}
             >
               #{m.id}
+            </span>
+          )}
+          {fav && (
+            <span
+              aria-label="Suosikki"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                color: '#e0546a',
+                flexShrink: 0,
+              }}
+            >
+              <IconHeart size={13} />
             </span>
           )}
         </div>
