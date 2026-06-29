@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `npm test` now runs both `test/unit.mjs` and every `.github/scripts/test/**/*.test.mjs` suite (219 tests across 51 suites). Previously only `test/unit.mjs` was executed, so the CI-script regression suites (empty-comment, misroute, verdict parsing) were silently skipped.
 - Restored missing `.github/scripts/jsdoc-check.mjs` and `.github/scripts/impact-check.mjs` whose functions were tested by `ci-scripts.test.mjs` but had been removed.
 - `/api/chat` proxy now propagates upstream API errors (e.g. 429 Rate Limit, 400 Bad Request) to the client with the real HTTP status code and a descriptive message. Previously a non-2xx response from Anthropic produced `200 {text:""}`, causing the UI to silently show an empty reply.
+- `.github/workflows/pr-review.yml`: restore missing `--allowedTools` flag before the tool allow-list in the "Run PR review" step. Without the flag the tool names were passed as stray positional arguments to `claude -p`, so the intended sandboxing was not applied.
 
 ### Changed
 - Shared Anthropic request logic (model name, token limit, fetch, and `upstream.ok` handling) extracted to `netlify/functions/lib/anthropic-proxy.mjs`. Bumping the model or token limit is now a one-file change.
