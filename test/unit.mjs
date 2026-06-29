@@ -639,3 +639,28 @@ describe('callAnthropic — upstream error propagation', () => {
     assert.strictEqual(result.text, '');
   });
 });
+
+// ── base64DecodeJson ─────────────────────────────────────────────────────────
+
+import { base64DecodeJson } from '../src/lib/base64.js';
+
+describe('base64DecodeJson', () => {
+  it('decodes ASCII-only JSON correctly', () => {
+    const input = { id: '42', username: 'testuser' };
+    const encoded = Buffer.from(JSON.stringify(input)).toString('base64');
+    assert.deepStrictEqual(base64DecodeJson(encoded), input);
+  });
+
+  it('regression: decodes UTF-8 JSON with Finnish multibyte characters (ä, ö)', () => {
+    // atob(encoded) alone would give a binary string; JSON.parse of that binary
+    // string would either throw or produce garbled text for multibyte sequences.
+    const input = { username: 'käyttäjä', name: 'Jönssi Äijä' };
+    const encoded = Buffer.from(JSON.stringify(input)).toString('base64');
+    assert.deepStrictEqual(base64DecodeJson(encoded), input);
+  });
+
+  it('throws SyntaxError for base64 that decodes to invalid JSON', () => {
+    const encoded = Buffer.from('not-json-at-all').toString('base64');
+    assert.throws(() => base64DecodeJson(encoded), SyntaxError);
+  });
+});

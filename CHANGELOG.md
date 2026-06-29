@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<<<<<<< HEAD
 ### Security
 - `/api/chat` proxy now enforces an Origin/Referer allowlist (set `ALLOWED_ORIGIN` env var; defaults to `https://threadsmiitit.netlify.app`), rejects prompts that are not a non-empty string or exceed 4 000 characters, and configures per-IP rate limiting via Netlify edge rules in `netlify.toml`.
 - Validation logic extracted to `netlify/functions/lib/validate-chat-request.mjs` (unit-tested); dev Vite plugin shares the same prompt validator.
@@ -21,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All bottom-sheet dialogs (`Sheet`, `ChatAssistant`) now carry `role="dialog"`, `aria-modal="true"`, and `aria-label` so screen readers announce them correctly. Escape closes the active sheet; Tab/Shift+Tab stay trapped inside the panel; focus is restored to the triggering element when the sheet closes. Shared logic lives in `src/hooks/useDialogA11y.js`.
 - `MeetupCard`: the `fav` prop was silently discarded (`fav: _fav`). It now renders a small heart badge (♥) in the chip row when the meetup is in the user's favourites, making the favourite state visible on the card.
 - Replaced index-based `key={i}` with stable identifiers in all list renders where items have a natural key: `m.id` for meetup cards (`ScreenMiitit`, `ScreenKalenteri`, `ScreenInfo`), the day number `d` for calendar cells, the handle string `h` for organiser links, and the step-label string `s` for the form stepper. Eliminates unnecessary DOM mutations when lists are filtered or reordered.
+- `AuthContext.jsx`: replaced `JSON.parse(atob(encoded))` with a `TextDecoder`-based decode so Finnish usernames containing multibyte UTF-8 characters (ä, ö, etc.) are parsed correctly. The decode logic is extracted into `src/lib/base64.js` as `base64DecodeJson()` and covered by regression tests.
 
 ### Changed
 - Shared Anthropic request logic (model name, token limit, fetch, and `upstream.ok` handling) extracted to `netlify/functions/lib/anthropic-proxy.mjs`. Bumping the model or token limit is now a one-file change.
