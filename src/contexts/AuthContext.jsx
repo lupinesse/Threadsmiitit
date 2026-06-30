@@ -10,6 +10,7 @@
  */
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { base64DecodeJson } from '../lib/base64.js';
 
 const STORAGE_KEY = 'threadsmiitit_user_v1';
 
@@ -41,7 +42,7 @@ export function AuthProvider({ children }) {
       return;
     }
     try {
-      const parsed = JSON.parse(atob(encoded));
+      const parsed = base64DecodeJson(encoded);
       setUser(parsed);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     } catch {
