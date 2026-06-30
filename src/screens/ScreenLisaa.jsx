@@ -9,7 +9,7 @@
  * calls EventStore.edit() instead of EventStore.add() on submit.
  */
 
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
@@ -28,12 +28,27 @@ const URL_RE = /^https?:\/\/(www\.)?threads\.(com|net)\//i;
 
 /**
  * Field wrapper with a label and optional hint.
+ *
+ * For single-input fields, pass `inputId` and set the same value as the
+ * child `<input>`'s `id` so the `<label htmlFor>` association is explicit.
+ * For button/pill groups, pass `isGroup` — the wrapper becomes a `<div
+ * role="group">` labelled by the visible label text via `aria-labelledby`.
+ *
  * @param {object} props
+ * @param {string} props.label - Visible label text.
+ * @param {string} [props.hint] - Secondary hint shown below the label.
+ * @param {object} props.t - Theme token object.
+ * @param {React.ReactNode} props.children - Form control(s).
+ * @param {string} [props.inputId] - `id` of the associated `<input>`. Omit for group fields.
+ * @param {boolean} [props.isGroup] - True when children are a button/pill group (not a single input).
  */
-function Field({ label, hint, t, children }) {
+function Field({ label, hint, t, children, inputId, isGroup }) {
+  const labelId = useId();
   return (
-    <div>
+    <div role={isGroup ? 'group' : undefined} aria-labelledby={isGroup ? labelId : undefined}>
       <label
+        id={isGroup ? labelId : undefined}
+        htmlFor={!isGroup && inputId ? inputId : undefined}
         style={{
           display: 'block',
           fontSize: 13,
@@ -491,16 +506,18 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       {/* Step 0 — basic info */}
       {step === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Field t={t} label="Miitin nimi">
+          <Field t={t} label="Miitin nimi" inputId="field-title">
             <input
+              id="field-title"
               value={f.title}
               onChange={(e) => set('title', e.target.value)}
               placeholder="esim. Lautapelimiitti"
               style={inputStyle(t)}
             />
           </Field>
-          <Field t={t} label="Päivämäärä">
+          <Field t={t} label="Päivämäärä" inputId="field-date">
             <input
+              id="field-date"
               type="date"
               value={f.date}
               onChange={(e) => set('date', e.target.value)}
@@ -513,7 +530,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       {/* Step 1 — city + category */}
       {step === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <Field t={t} label="Kaupunki">
+          <Field t={t} label="Kaupunki" isGroup>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {CITIES.map((c) => (
                 <Pill
@@ -543,7 +560,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
               <CityAutocomplete t={t} value={f.city} onChange={(v) => set('city', v)} />
             )}
           </Field>
-          <Field t={t} label="Laji">
+          <Field t={t} label="Laji" isGroup>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {Object.keys(CATEGORIES).map((k) => {
                 const c = CATEGORIES[k];
@@ -588,8 +605,9 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       {/* Step 2 — link + organizer */}
       {step === 2 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Field t={t} label="Threads-käyttäjänimesi">
+          <Field t={t} label="Threads-käyttäjänimesi" inputId="field-org">
             <input
+              id="field-org"
               value={f.org}
               onChange={(e) =>
                 set(
@@ -607,8 +625,10 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
             t={t}
             label="Linkki Threads-postaukseen"
             hint="Pakollinen — jokaisella miitillä on oltava postaus"
+            inputId="field-url"
           >
             <input
+              id="field-url"
               value={f.url}
               onChange={(e) => set('url', e.target.value)}
               placeholder="https://www.threads.com/..."
