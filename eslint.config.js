@@ -16,7 +16,7 @@ export default [
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-empty': 'error',
       'security/detect-non-literal-fs-filename': 'off',
     },
   },
@@ -36,7 +36,7 @@ export default [
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-var': 'error',
       'prefer-const': 'warn',
-      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-empty': 'error',
       'security/detect-object-injection': 'off',
     },
   },
@@ -57,7 +57,7 @@ export default [
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-empty': 'error',
       'security/detect-non-literal-fs-filename': 'off',
     },
   },
@@ -72,7 +72,7 @@ export default [
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-empty': 'error',
       'security/detect-non-literal-fs-filename': 'off',
       'security/detect-object-injection': 'off',
     },
@@ -88,7 +88,7 @@ export default [
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-empty': 'error',
       'security/detect-non-literal-fs-filename': 'off',
       'security/detect-object-injection': 'off',
     },

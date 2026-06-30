@@ -74,7 +74,10 @@ with these rules, follow these rules and flag the conflict.
 
 ### Logging & error handling
 - Failures and misuse must produce informative errors — never swallow errors
-  with empty `catch` blocks.
+  with empty `catch` blocks. ESLint enforces this (`'no-empty': 'error'`,
+  `allowEmptyCatch` is **not** set). When a catch is intentionally a no-op
+  (e.g. localStorage unavailable, clipboard denied), document it with an
+  explanatory comment in the catch body rather than leaving it blank.
 - Log the configuration in effect when a run starts.
 - If the code branches on decisions, log which path was taken.
 

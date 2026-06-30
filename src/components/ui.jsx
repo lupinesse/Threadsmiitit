@@ -332,7 +332,9 @@ function CopyButton({ url, t }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Clipboard access denied — silently ignore; the button stays in its default state
+      });
   }
 
   return (
