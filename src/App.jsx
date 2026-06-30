@@ -487,7 +487,7 @@ export default function App() {
         </nav>
 
         {/* ── Meetup detail sheet ────────────────────────────────────── */}
-        <Sheet open={!!selected} onClose={() => setSelected(null)} t={t.card}>
+        <Sheet open={!!selected} onClose={() => setSelected(null)} t={t.card} label="Miitin tiedot">
           <MeetupDetail
             m={selected}
             t={t.card}
@@ -520,7 +520,12 @@ export default function App() {
         />
 
         {/* ── Edit meetup sheet ──────────────────────────────────────── */}
-        <Sheet open={!!editTarget} onClose={() => setEditTarget(null)} t={t.card}>
+        <Sheet
+          open={!!editTarget}
+          onClose={() => setEditTarget(null)}
+          t={t.card}
+          label="Muokkaa miittiä"
+        >
           <ScreenLisaa
             key={editTarget?.id}
             t={t}

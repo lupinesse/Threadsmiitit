@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { useDialogA11y } from '../hooks/useDialogA11y.js';
 import { CATEGORIES, CITIES, MONTHS_FI, DH } from '../data.js';
 import {
   IconChevron,
@@ -671,9 +672,20 @@ export function MeetupDetail({ m, t, fav, onFav, onClose }) {
 
 /**
  * Bottom sheet overlay. Slides up from the bottom with a scrim behind it.
+ *
+ * The panel carries `role="dialog"`, `aria-modal`, and `aria-label` so
+ * screen readers announce it correctly. Escape closes the sheet; Tab/Shift+Tab
+ * stay trapped inside; focus is restored to the triggering element on close.
+ *
  * @param {object} props
+ * @param {boolean} props.open - Whether the sheet is visible.
+ * @param {Function} props.onClose - Callback to close the sheet.
+ * @param {object} props.t - Theme token object.
+ * @param {string} props.label - Accessible name for the dialog (aria-label).
+ * @param {React.ReactNode} props.children
  */
-export function Sheet({ open, onClose, t, children }) {
+export function Sheet({ open, onClose, t, label, children }) {
+  const { panelRef } = useDialogA11y({ open, onClose });
   return (
     <div
       style={{
@@ -696,6 +708,11 @@ export function Sheet({ open, onClose, t, children }) {
         }}
       />
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        tabIndex={-1}
         style={{
           position: 'absolute',
           left: 0,
@@ -709,6 +726,7 @@ export function Sheet({ open, onClose, t, children }) {
           transition: 'transform .34s cubic-bezier(.32,.72,0,1)',
           overflowY: 'auto',
           boxShadow: '0 -10px 40px rgba(0,0,0,0.25)',
+          outline: 'none',
         }}
       >
         <div
