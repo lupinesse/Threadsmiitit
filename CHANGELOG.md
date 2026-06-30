@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Shared Anthropic request logic (model name, token limit, fetch, and `upstream.ok` handling) extracted to `netlify/functions/lib/anthropic-proxy.mjs`. Bumping the model or token limit is now a one-file change.
 - `eslint.config.js`: removed `allowEmptyCatch: true` from all file-glob configs so empty `catch {}` blocks are now a lint error everywhere. Added explanatory comments to the two previously-bare catches (`App.jsx` favs fallback, `CopyButton` clipboard deny). Updated `CLAUDE.md` to document the new policy.
+- `README.md`: corrected live URL to `https://threadsmiitit.netlify.app/`, updated build tool version (Vite 8), noted Netlify Function and Netlify deployment in the tech-stack table, and removed the stale "replace with your own backend" note.
+- `package.json`: bumped version from `0.1.0` to `0.4.0` to match the latest CHANGELOG entry.
 
 ### Added
 - City notification subscription: logged-in users can choose a city in the Profile sheet and receive an in-app notification banner when new meetups are added to that city. Preference is persisted to `localStorage` (`threadsmiitit_city_notif_v1`) as a `{ cityKey, seenKeys }` object so only meetups added after the subscription trigger a banner. The banner appears at the top of the Miitit screen with a "Näytä" button that filters the list by that city and a dismiss button.
