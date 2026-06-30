@@ -1,17 +1,22 @@
 /**
  * @fileoverview AI chat backend client.
  *
- * Calls the /api/chat endpoint that Vite's development server provides via
- * the `chatApiPlugin` in vite.config.js. That plugin reads the
- * ANTHROPIC_API_KEY environment variable server-side and proxies requests to
- * the Anthropic Messages API — the key is never exposed in the browser bundle.
+ * Calls the /api/chat endpoint. In development, Vite's `chatApiPlugin`
+ * (vite.config.js) handles the route server-side. In production, the Netlify
+ * Function at netlify/functions/chat.js takes over.
  *
- * To enable the AI assistant:
+ * Both paths read ANTHROPIC_API_KEY server-side — the key is never in the
+ * browser bundle. The production endpoint enforces:
+ *   - Origin check: only requests from ALLOWED_ORIGIN are accepted.
+ *   - Body validation: prompt must be a non-empty string ≤ 4 000 characters.
+ *   - Rate limiting: 30 requests per 60 s per IP (via Netlify edge rules).
+ *
+ * To enable the AI assistant in development:
  *   1. Set ANTHROPIC_API_KEY in your shell environment before `npm run dev`.
  *   2. The assistant uses claude-haiku-4-5-20251001 (fast, low-cost).
  *
- * For production deployment, replace the /api/chat endpoint with your own
- * backend that authenticates users before forwarding prompts.
+ * Adding per-user authentication (session cookie verification) is a larger
+ * future change — see chat.js for details.
  */
 
 /**
