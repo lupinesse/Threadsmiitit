@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { validatePrompt } from './netlify/functions/lib/validate-chat-request.mjs';
+import { callAnthropic } from './netlify/functions/lib/anthropic-proxy.mjs';
 
 /**
  * Vite server-side middleware that proxies /api/chat to the Anthropic API.
@@ -46,23 +47,14 @@ function chatApiPlugin() {
               return;
             }
 
-            const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-              },
-              body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 1024,
-                messages: [{ role: 'user', content: prompt }],
-              }),
-            });
+            const result = await callAnthropic(prompt, apiKey);
+            if (!result.ok) {
+              res.statusCode = result.status;
+              res.end(JSON.stringify({ error: result.error }));
+              return;
+            }
 
-            const data = await upstream.json();
-            const text = data.content?.[0]?.text ?? '';
-            res.end(JSON.stringify({ text }));
+            res.end(JSON.stringify({ text: result.text }));
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ error: err.message }));

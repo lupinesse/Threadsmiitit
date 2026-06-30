@@ -581,3 +581,61 @@ describe('validatePrompt', () => {
     assert.strictEqual(result.status, 413);
   });
 });
+
+// ── anthropic-proxy ──────────────────────────────────────────────────────────
+
+import { callAnthropic } from '../netlify/functions/lib/anthropic-proxy.mjs';
+
+describe('callAnthropic — upstream error propagation', () => {
+  it('returns ok:false with the upstream status on a 429 response', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: { message: 'rate limit exceeded' } }),
+    }));
+    const result = await callAnthropic('hello', 'fake-key');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 429);
+    assert.ok(result.error.includes('429'), `expected 429 in error, got: ${result.error}`);
+  });
+
+  it('returns ok:false with the upstream status on a 400 response', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { message: 'invalid request' } }),
+    }));
+    const result = await callAnthropic('hello', 'fake-key');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 400);
+  });
+
+  it('returns ok:false with 502 when fetch rejects (network error)', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('ECONNREFUSED');
+    });
+    const result = await callAnthropic('hello', 'fake-key');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.status, 502);
+  });
+
+  it('returns ok:true with text on a successful response', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: 'Moi!' }] }),
+    }));
+    const result = await callAnthropic('hello', 'fake-key');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.text, 'Moi!');
+  });
+
+  it('returns empty text when content array is missing', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
+      ok: true,
+      json: async () => ({ content: [] }),
+    }));
+    const result = await callAnthropic('hello', 'fake-key');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.text, '');
+  });
+});
