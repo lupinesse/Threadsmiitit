@@ -1,6 +1,5 @@
 // Base reset and global styles for Threadsmiitit.
-
-@import 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap';
+// Poppins is loaded non-blocking in index.html via <link media="print" onload>.
 
 *,
 *::before,
