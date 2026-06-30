@@ -181,7 +181,7 @@ export function ScreenKalenteri({ t, onOpen, cityFilter, setCityFilter, events }
             const past = cellDate < todayPlain;
             return (
               <button
-                key={i}
+                key={d}
                 onClick={() => has && setSelDay(sel ? null : d)}
                 style={{
                   all: 'unset',
@@ -263,8 +263,8 @@ export function ScreenKalenteri({ t, onOpen, cityFilter, setCityFilter, events }
               {selMeetups.length > 1 ? 'ä' : ''}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {selMeetups.map((m, i) => (
-                <MeetupCard key={i} m={m} t={t.card} onClick={() => onOpen(m)} fav={false} />
+              {selMeetups.map((m) => (
+                <MeetupCard key={m.id} m={m} t={t.card} onClick={() => onOpen(m)} fav={false} />
               ))}
             </div>
           </div>

@@ -480,7 +480,7 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       {/* Stepper */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
         {STEPS.map((s, i) => (
-          <div key={i} style={{ flex: 1 }}>
+          <div key={s} style={{ flex: 1 }}>
             <div
               style={{
                 height: 4,
