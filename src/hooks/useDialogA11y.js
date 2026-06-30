@@ -32,7 +32,7 @@ function focusableElements(container) {
  * @param {object} params
  * @param {boolean} params.open - Whether the dialog is currently visible.
  * @param {Function} params.onClose - Callback invoked to close the dialog.
- * @returns {{ panelRef: import('react').RefObject<HTMLElement> }}
+ * @returns {{panelRef: object}} Object containing `panelRef` — a React ref to attach to the panel element.
  */
 export function useDialogA11y({ open, onClose }) {
   const panelRef = useRef(null);
