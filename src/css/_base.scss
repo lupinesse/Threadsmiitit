@@ -37,6 +37,20 @@ body {
   display: none;
 }
 
+// Keyboard-focus ring for every interactive element. Components style buttons
+// with inline `style={{ all: 'unset', ... }}` (and a few inputs set
+// `outline: 'none'` inline) to fully own their visual design. An inline
+// `style` attribute always outranks an external stylesheet rule regardless of
+// selector specificity, so `!important` is the only way this rule can restore
+// the outline those resets strip — this is the sole `!important` in the
+// codebase, kept narrowly scoped to WCAG 2.4.7 focus visibility.
+// `currentcolor` picks up each element's own text colour, which the theme
+// already chose for contrast against that element's surface.
+:focus-visible {
+  outline: 2px solid currentcolor !important;
+  outline-offset: 2px !important;
+}
+
 // Typing-indicator animation — used by ChatAssistant.
 @keyframes tmblink {
   0%,
