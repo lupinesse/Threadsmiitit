@@ -95,7 +95,20 @@ export default async function handler(req) {
     profileUrl: `https://www.threads.com/@${username}`,
   };
 
-  const sessionToken = signSession(user);
+  let sessionToken;
+  try {
+    sessionToken = signSession(user);
+  } catch (err) {
+    // Most commonly a missing/misconfigured SESSION_SECRET — fail closed to
+    // the same error UX as every other failure path in this handler instead
+    // of surfacing a raw 500 to the browser.
+    console.error('auth-callback: failed to sign session token', err);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${origin}/#auth=error`, 'Set-Cookie': clearState },
+    });
+  }
+
   const headers = new Headers({ Location: `${origin}/` });
   headers.append(
     'Set-Cookie',

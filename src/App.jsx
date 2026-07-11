@@ -48,7 +48,7 @@ const TABS = [
  */
 export default function App() {
   const t = THEME;
-  const { user, login, authError, clearAuthError, isAdmin } = useAuth();
+  const { user, login, authError, clearAuthError, isAdmin, loading: authLoading } = useAuth();
 
   // ── Navigation state ───────────────────────────────────────────────────
   const [tab, setTab] = useState('miitit');
@@ -245,7 +245,7 @@ export default function App() {
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-                {user ? (
+                {authLoading ? null : user ? (
                   <button
                     aria-label={`Kirjautuneena: @${user.username}. Avaa oma profiili.`}
                     onClick={() => setProfileOpen(true)}

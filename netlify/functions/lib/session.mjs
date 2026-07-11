@@ -180,6 +180,7 @@ export function getUser(req) {
  * @returns {boolean}
  */
 export function isAdmin(username, admins = ADMINS) {
+  if (!username) return false;
   const normalized = username.replace(/^@/, '').toLowerCase();
   return admins.some((handle) => handle.replace(/^@/, '').toLowerCase() === normalized);
 }

@@ -1206,6 +1206,13 @@ describe('isAdmin', () => {
     assert.strictEqual(isAdmin('rando'), false);
   });
 
+  it('returns false (never throws) for a falsy username', () => {
+    for (const bad of ['', null, undefined]) {
+      assert.doesNotThrow(() => isAdmin(bad));
+      assert.strictEqual(isAdmin(bad), false);
+    }
+  });
+
   it('uses an injected admin list when provided', () => {
     assert.strictEqual(isAdmin('bob', ['@bob']), true);
     assert.strictEqual(isAdmin('bob', ['@alice']), false);
