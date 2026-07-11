@@ -8,6 +8,7 @@ import { CITIES, DH } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { catColor, cityName, hexA, MeetupCard, CatTag, Pill } from '../components/ui.jsx';
 import { IconBell, IconCalendar, IconClose, IconPin, IconSpark } from '../components/icons.jsx';
+import { useDragScroll } from '../hooks/useDragScroll.js';
 
 /**
  * Wide horizontal card for the "Tällä viikolla" rail.
@@ -121,6 +122,11 @@ export function ScreenMiitit({
   onDismissNotification,
   onViewNotificationCity,
 }) {
+  // Enable mouse click-and-drag scrolling on the horizontal rows (the scrollbar
+  // is hidden, so mouse users otherwise have no way to pan them).
+  const weekScrollRef = useDragScroll();
+  const cityScrollRef = useDragScroll();
+
   const upcoming = events
     .filter((m) => DH.isUpcoming(m.date))
     .filter((m) => cityFilter === 'all' || m.city === cityFilter)
@@ -258,6 +264,7 @@ export function ScreenMiitit({
             </span>
           </div>
           <div
+            ref={weekScrollRef}
             style={{
               display: 'flex',
               gap: 12,
@@ -275,6 +282,7 @@ export function ScreenMiitit({
 
       {/* City filter */}
       <div
+        ref={cityScrollRef}
         style={{
           display: 'flex',
           gap: 8,

@@ -165,6 +165,44 @@ describe('MEETUPS seed integrity', () => {
   });
 });
 
+// ── useDragScroll helpers ────────────────────────────────────────────────────
+
+const { dragScrollLeft, isDrag, DRAG_THRESHOLD_PX } = await import('../src/hooks/useDragScroll.js');
+
+describe('dragScrollLeft', () => {
+  it('scrolls content left when the pointer is dragged right', () => {
+    // Dragging right by 30px from scrollLeft 100 → 70.
+    assert.strictEqual(dragScrollLeft(100, 200, 230), 70);
+  });
+
+  it('scrolls content right when the pointer is dragged left', () => {
+    assert.strictEqual(dragScrollLeft(100, 200, 170), 130);
+  });
+
+  it('returns the start position when the pointer has not moved', () => {
+    assert.strictEqual(dragScrollLeft(100, 200, 200), 100);
+  });
+});
+
+describe('isDrag', () => {
+  it('is false below the threshold', () => {
+    assert.strictEqual(isDrag(DRAG_THRESHOLD_PX - 1), false);
+  });
+
+  it('is true at the threshold', () => {
+    assert.strictEqual(isDrag(DRAG_THRESHOLD_PX), true);
+  });
+
+  it('treats negative movement by magnitude', () => {
+    assert.strictEqual(isDrag(-(DRAG_THRESHOLD_PX + 5)), true);
+  });
+
+  it('respects a custom threshold', () => {
+    assert.strictEqual(isDrag(10, 20), false);
+    assert.strictEqual(isDrag(20, 20), true);
+  });
+});
+
 // ── EventStore normalisation ────────────────────────────────────────────────
 
 const EventStore = (await import('../src/store/EventStore.js')).default;
