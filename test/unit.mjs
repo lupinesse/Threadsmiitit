@@ -575,6 +575,261 @@ describe('EventStore.edit', () => {
   });
 });
 
+describe('EventStore moderation — add / edit status', () => {
+  it('add() sets status to pending and records a submitted timestamp', () => {
+    const ev = EventStore.add({
+      title: 'Uusi miitti',
+      date: '2026-10-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/mod-add',
+    });
+    assert.strictEqual(ev.status, 'pending');
+    assert.strictEqual(typeof ev.submitted, 'number');
+  });
+
+  it('edit() keeps status pending when it was already pending', () => {
+    const ev = EventStore.add({
+      title: 'Muokkaustesti',
+      date: '2026-10-02',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/mod-edit-pending',
+    });
+    const updated = EventStore.edit(ev.id, { title: 'Muokattu' });
+    assert.strictEqual(updated.status, 'pending');
+  });
+
+  it('edit() preserves approved status', () => {
+    const ev = EventStore.add({
+      title: 'Hyväksytty',
+      date: '2026-10-03',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/mod-edit-approved',
+    });
+    EventStore.approve(ev.id);
+    const updated = EventStore.edit(ev.id, { title: 'Hyväksytty muokattu' });
+    assert.strictEqual(updated.status, 'approved');
+  });
+
+  it('edit() resets a rejected event back to pending for re-review', () => {
+    const ev = EventStore.add({
+      title: 'Hylätty',
+      date: '2026-10-04',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/mod-edit-rejected',
+    });
+    EventStore.reject(ev.id, 'Ei sovi');
+    const updated = EventStore.edit(ev.id, { title: 'Hylätty uudelleen' });
+    assert.strictEqual(updated.status, 'pending');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(updated, 'rejectReason'), false);
+  });
+
+  it('edit() preserves the original submitted timestamp', () => {
+    const ev = EventStore.add({
+      title: 'Aikaleimatesti',
+      date: '2026-10-05',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/mod-timestamp',
+    });
+    const updated = EventStore.edit(ev.id, { title: 'Aikaleimatesti Uusi' });
+    assert.strictEqual(updated.submitted, ev.submitted);
+  });
+});
+
+describe('EventStore.approve / reject / pending', () => {
+  it('approve() sets status to approved', () => {
+    const ev = EventStore.add({
+      title: 'Hyväksy minut',
+      date: '2026-10-06',
+      city: 'turku',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/approve-me',
+    });
+    const approved = EventStore.approve(ev.id);
+    assert.strictEqual(approved.status, 'approved');
+    assert.strictEqual(typeof approved.reviewedAt, 'number');
+  });
+
+  it('reject() sets status to rejected and stores an optional reason', () => {
+    const ev = EventStore.add({
+      title: 'Hylkää minut',
+      date: '2026-10-07',
+      city: 'turku',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/reject-me',
+    });
+    const rejected = EventStore.reject(ev.id, 'Ei täytä ehtoja');
+    assert.strictEqual(rejected.status, 'rejected');
+    assert.strictEqual(rejected.rejectReason, 'Ei täytä ehtoja');
+  });
+
+  it('approve() and reject() return null for an unknown id', () => {
+    assert.strictEqual(EventStore.approve('zzzz'), null);
+    assert.strictEqual(EventStore.reject('zzzz'), null);
+  });
+
+  it('pending() lists only pending events, oldest submitted first', () => {
+    EventStore.save([]); // isolate from events added by earlier tests in this file
+    const first = EventStore.add({
+      title: 'Ensimmäinen',
+      date: '2026-11-01',
+      city: 'oulu',
+      cat: 'yleinen',
+      org: '@a',
+      url: 'https://www.threads.com/first',
+    });
+    const second = EventStore.add({
+      title: 'Toinen',
+      date: '2026-11-02',
+      city: 'oulu',
+      cat: 'yleinen',
+      org: '@b',
+      url: 'https://www.threads.com/second',
+    });
+    const approved = EventStore.add({
+      title: 'Kolmas — hyväksytty',
+      date: '2026-11-03',
+      city: 'oulu',
+      cat: 'yleinen',
+      org: '@c',
+      url: 'https://www.threads.com/third',
+    });
+    EventStore.approve(approved.id);
+
+    const list = EventStore.pending();
+    assert.deepStrictEqual(
+      list.map((e) => e.id),
+      [first.id, second.id]
+    );
+  });
+});
+
+describe('EventStore.ownedBy', () => {
+  it('returns every submission by a handle regardless of status', () => {
+    EventStore.save([]);
+    const addedBy = { id: '1', username: 'omistaja', avatarUrl: '', profileUrl: '' };
+    const approvedEv = EventStore.add({
+      title: 'Omani hyväksytty',
+      date: '2026-11-10',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/owned-approved',
+      addedBy,
+    });
+    EventStore.approve(approvedEv.id);
+    const rejectedEv = EventStore.add({
+      title: 'Omani hylätty',
+      date: '2026-11-11',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/owned-rejected',
+      addedBy,
+    });
+    EventStore.reject(rejectedEv.id);
+    EventStore.add({
+      title: 'Muiden miitti',
+      date: '2026-11-12',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/not-owned',
+      addedBy: { id: '2', username: 'muu', avatarUrl: '', profileUrl: '' },
+    });
+
+    const mine = EventStore.ownedBy('omistaja');
+    assert.deepStrictEqual(mine.map((e) => e.id).sort(), [approvedEv.id, rejectedEv.id].sort());
+  });
+
+  it('returns an empty array when no username is given', () => {
+    assert.deepStrictEqual(EventStore.ownedBy(''), []);
+    assert.deepStrictEqual(EventStore.ownedBy(undefined), []);
+  });
+});
+
+describe('EventStore.all — moderation visibility', () => {
+  it('includes approved user events for any caller', () => {
+    EventStore.save([]);
+    const ev = EventStore.add({
+      title: 'Näkyvä kaikille',
+      date: '2026-12-01',
+      city: 'lahti',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/visible-all',
+    });
+    EventStore.approve(ev.id);
+    const list = EventStore.all('joku-muu');
+    assert.ok(list.some((e) => e.id === ev.id));
+  });
+
+  it("shows a user's own pending event to themself but hides it from others", () => {
+    EventStore.save([]);
+    const ev = EventStore.add({
+      title: 'Oma odottava',
+      date: '2026-12-02',
+      city: 'lahti',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/own-pending',
+      addedBy: { id: '9', username: 'lahtelainen', avatarUrl: '', profileUrl: '' },
+    });
+    assert.ok(EventStore.all('lahtelainen').some((e) => e.id === ev.id));
+    assert.ok(!EventStore.all('joku-muu').some((e) => e.id === ev.id));
+    assert.ok(!EventStore.all().some((e) => e.id === ev.id));
+  });
+
+  it('never includes a rejected event, even for its own submitter', () => {
+    EventStore.save([]);
+    const ev = EventStore.add({
+      title: 'Hylätty piiloon',
+      date: '2026-12-03',
+      city: 'lahti',
+      cat: 'yleinen',
+      org: '@x',
+      url: 'https://www.threads.com/rejected-hidden',
+      addedBy: { id: '9', username: 'lahtelainen', avatarUrl: '', profileUrl: '' },
+    });
+    EventStore.reject(ev.id);
+    assert.ok(!EventStore.all('lahtelainen').some((e) => e.id === ev.id));
+  });
+});
+
+describe('EventStore load() migration — legacy records without status', () => {
+  it('treats a persisted event with no status field as approved', () => {
+    localStorage.setItem(
+      'threadsmiitit_user_events_v1',
+      JSON.stringify([
+        {
+          id: 'lgcy',
+          user: true,
+          title: 'Vanha tallennus',
+          date: '2026-06-01',
+          city: 'helsinki',
+          cat: 'yleinen',
+          org: ['@x'],
+          url: 'https://www.threads.com/legacy',
+        },
+      ])
+    );
+    const loaded = EventStore.load();
+    assert.strictEqual(loaded[0].status, 'approved');
+    EventStore.save([]); // clean up for subsequent tests
+  });
+});
+
 describe('EventStore canonicalKunta', () => {
   it('finds Helsinki (case insensitive)', () => {
     assert.strictEqual(EventStore.canonicalKunta('HELSINKI'), 'Helsinki');
@@ -840,27 +1095,189 @@ describe('callAnthropic — upstream error propagation', () => {
   });
 });
 
-// ── base64DecodeJson ─────────────────────────────────────────────────────────
+// ── session.mjs ──────────────────────────────────────────────────────────────
+// Server-verifiable session token: sign/verify/cookie helpers used by the
+// Netlify Functions auth flow. See netlify/functions/lib/session.mjs.
 
-import { base64DecodeJson } from '../src/lib/base64.js';
+import {
+  signSession,
+  verifySession,
+  readSessionCookie,
+  sessionCookie,
+  clearSessionCookie,
+  isAdmin,
+  requireUser,
+  requireAdmin,
+} from '../netlify/functions/lib/session.mjs';
 
-describe('base64DecodeJson', () => {
-  it('decodes ASCII-only JSON correctly', () => {
-    const input = { id: '42', username: 'testuser' };
-    const encoded = Buffer.from(JSON.stringify(input)).toString('base64');
-    assert.deepStrictEqual(base64DecodeJson(encoded), input);
+const sessionUser = {
+  id: 'u1',
+  username: 'lupinesse',
+  avatarUrl: null,
+  profileUrl: 'https://www.threads.com/@lupinesse',
+};
+
+describe('signSession / verifySession', () => {
+  it('round-trips a valid token', () => {
+    const token = signSession(sessionUser, { secret: 'k' });
+    assert.deepStrictEqual(verifySession(token, { secret: 'k' }), sessionUser);
   });
 
-  it('regression: decodes UTF-8 JSON with Finnish multibyte characters (ä, ö)', () => {
-    // atob(encoded) alone would give a binary string; JSON.parse of that binary
-    // string would either throw or produce garbled text for multibyte sequences.
-    const input = { username: 'käyttäjä', name: 'Jönssi Äijä' };
-    const encoded = Buffer.from(JSON.stringify(input)).toString('base64');
-    assert.deepStrictEqual(base64DecodeJson(encoded), input);
+  it('rejects a token verified with the wrong secret', () => {
+    const token = signSession(sessionUser, { secret: 'k1' });
+    assert.strictEqual(verifySession(token, { secret: 'k2' }), null);
   });
 
-  it('throws SyntaxError for base64 that decodes to invalid JSON', () => {
-    const encoded = Buffer.from('not-json-at-all').toString('base64');
-    assert.throws(() => base64DecodeJson(encoded), SyntaxError);
+  it('rejects a token with a tampered payload segment', () => {
+    const token = signSession(sessionUser, { secret: 'k' });
+    const [payloadB64, sigB64] = token.split('.');
+    const tampered = `${payloadB64.slice(0, -1)}${payloadB64.at(-1) === 'a' ? 'b' : 'a'}.${sigB64}`;
+    assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
+  });
+
+  it('rejects a token with a tampered signature segment', () => {
+    const token = signSession(sessionUser, { secret: 'k' });
+    const [payloadB64, sigB64] = token.split('.');
+    const tampered = `${payloadB64}.${sigB64.slice(0, -1)}${sigB64.at(-1) === 'a' ? 'b' : 'a'}`;
+    assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
+  });
+
+  it('does not throw on a wrong-length signature', () => {
+    const token = signSession(sessionUser, { secret: 'k' });
+    const [payloadB64] = token.split('.');
+    assert.doesNotThrow(() => verifySession(`${payloadB64}.YWJj`, { secret: 'k' }));
+    assert.strictEqual(verifySession(`${payloadB64}.YWJj`, { secret: 'k' }), null);
+  });
+
+  it('rejects an expired token and accepts one still within its ttl', () => {
+    const token = signSession(sessionUser, { secret: 'k', ttlSeconds: 100, nowMs: 1_000_000 });
+    assert.strictEqual(verifySession(token, { secret: 'k', nowMs: 1_000_000 + 101_000 }), null);
+    assert.ok(verifySession(token, { secret: 'k', nowMs: 1_000_000 + 50_000 }));
+  });
+
+  it('returns null (never throws) for malformed input', () => {
+    for (const bad of ['', null, undefined, 'garbage', 'a.b.c', 'onlyonesegment']) {
+      assert.doesNotThrow(() => verifySession(bad, { secret: 'k' }));
+      assert.strictEqual(verifySession(bad, { secret: 'k' }), null);
+    }
+  });
+});
+
+describe('readSessionCookie', () => {
+  it('extracts the named cookie', () => {
+    assert.strictEqual(readSessionCookie('tm_session=abc; other=1'), 'abc');
+  });
+
+  it('extracts the named cookie when it is not first', () => {
+    assert.strictEqual(readSessionCookie('x=1; tm_session=abc'), 'abc');
+  });
+
+  it('returns null when the cookie is absent', () => {
+    assert.strictEqual(readSessionCookie('other=1'), null);
+  });
+
+  it('returns null for a null header', () => {
+    assert.strictEqual(readSessionCookie(null), null);
+  });
+
+  it('matches the cookie name exactly, not as a suffix', () => {
+    assert.strictEqual(readSessionCookie('xtm_session=abc'), null);
+  });
+
+  it('tolerates surrounding whitespace around name and value', () => {
+    assert.strictEqual(readSessionCookie(' tm_session = abc '), 'abc');
+  });
+});
+
+describe('isAdmin', () => {
+  it('matches a bare username against the default admin list', () => {
+    assert.strictEqual(isAdmin('lupinesse'), true);
+  });
+
+  it('matches an @-prefixed username', () => {
+    assert.strictEqual(isAdmin('@lupinesse'), true);
+  });
+
+  it('is case-insensitive', () => {
+    assert.strictEqual(isAdmin('LupinEsse'), true);
+  });
+
+  it('returns false for a non-admin username', () => {
+    assert.strictEqual(isAdmin('rando'), false);
+  });
+
+  it('returns false (never throws) for a falsy username', () => {
+    for (const bad of ['', null, undefined]) {
+      assert.doesNotThrow(() => isAdmin(bad));
+      assert.strictEqual(isAdmin(bad), false);
+    }
+  });
+
+  it('uses an injected admin list when provided', () => {
+    assert.strictEqual(isAdmin('bob', ['@bob']), true);
+    assert.strictEqual(isAdmin('bob', ['@alice']), false);
+  });
+});
+
+describe('sessionCookie / clearSessionCookie', () => {
+  it('builds a Set-Cookie value with the expected attributes', () => {
+    const value = sessionCookie('t');
+    assert.match(value, /tm_session=t/);
+    assert.match(value, /HttpOnly/);
+    assert.match(value, /SameSite=Lax/);
+    assert.match(value, /Path=\//);
+    assert.match(value, /Max-Age=/);
+    assert.match(value, /Secure/);
+  });
+
+  it('omits Secure when secure: false', () => {
+    const value = sessionCookie('t', { secure: false });
+    assert.doesNotMatch(value, /Secure/);
+  });
+
+  it('clearSessionCookie targets tm_session with Max-Age=0', () => {
+    const value = clearSessionCookie();
+    assert.match(value, /tm_session=/);
+    assert.match(value, /Max-Age=0/);
+  });
+});
+
+describe('requireUser / requireAdmin', () => {
+  const secret = 'k';
+  process.env.SESSION_SECRET = secret;
+
+  function requestWithUser(username) {
+    const token = signSession({ ...sessionUser, username }, { secret });
+    return { headers: new Headers({ cookie: `tm_session=${token}` }) };
+  }
+
+  it('requireUser returns ok with the session user when the cookie is valid', () => {
+    const result = requireUser(requestWithUser('lupinesse'));
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.user.username, 'lupinesse');
+  });
+
+  it('requireUser returns a 401 response when unauthenticated', () => {
+    const result = requireUser({ headers: new Headers() });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.response.status, 401);
+  });
+
+  it('requireAdmin returns ok for an admin session', () => {
+    const result = requireAdmin(requestWithUser('lupinesse'));
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.user.username, 'lupinesse');
+  });
+
+  it('requireAdmin returns a 403 response for an authenticated non-admin', () => {
+    const result = requireAdmin(requestWithUser('rando'));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.response.status, 403);
+  });
+
+  it('requireAdmin returns a 401 response when unauthenticated', () => {
+    const result = requireAdmin({ headers: new Headers() });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.response.status, 401);
   });
 });

@@ -3,6 +3,15 @@
  *
  * MEETUPS is the read-only seed list; user-added meetups live in EventStore.
  * DH provides date formatting and comparison utilities.
+ *
+ * Data provenance: MEETUPS and CITIES are manually transcribed from the
+ * community-run listing at https://sites.google.com/view/threadsmiitit and
+ * from individual meetup announcements on Threads (linked per-entry via
+ * `url`). There is no automated feed — entries are refreshed periodically by
+ * a maintainer reconciling against that source (see git history for
+ * `src/data.js` for each sync). Each `MEETUPS` entry's `org` field lists the
+ * Threads handle(s) that posted the original announcement, which remains the
+ * source of truth for that specific event.
  */
 
 /**
@@ -82,11 +91,7 @@ export const CITIES = [
   { key: 'turku', name: 'Turku', short: 'Turku' },
 ];
 
-/**
- * Admin Threads handles.
- * @type {string[]}
- */
-export const ADMINS = ['@tintsh', '@nipatran', '@lupinesse'];
+export { ADMINS } from '../netlify/functions/lib/admins.mjs';
 
 /**
  * @typedef {object} MeetupRecord

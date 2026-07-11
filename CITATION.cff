@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using the metadata below.
+title: Threadsmiitit
+abstract: >-
+  Finnish community meetup calendar — aggregates Threads-posted meetups
+  across Finnish cities into one read-only calendar that links back to the
+  original posts for sign-up.
+type: software
+authors:
+  - name: lupinesse
+    email: lupinesse@gmail.com
+repository-code: 'https://github.com/lupinesse/Threadsmiitit'
+url: 'https://threadsmiitit.netlify.app/'
+license: MIT
+version: 0.4.0
+date-released: '2026-07-11'

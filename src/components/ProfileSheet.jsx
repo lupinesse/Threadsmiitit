@@ -5,8 +5,8 @@
  *  - User identity (avatar + @username + link to Threads profile)
  *  - Kaupunki-ilmoitukset: city notification subscription picker
  *  - Suosikit: meetups the user has favourited
- *  - Miittini: meetups the user added while logged in (addedBy.username match),
- *    each with a delete button
+ *  - Miittini: every meetup the user has submitted while logged in, regardless
+ *    of moderation status, each with a status chip and a delete button
  *  - Kirjaudu ulos button
  */
 
@@ -15,7 +15,7 @@ import { CITIES } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { MeetupCard, Sheet, hexA } from './ui.jsx';
-import { IconArrowUpRight, IconClose } from './icons.jsx';
+import { IconArrowUpRight, IconClose, IconCheck, IconClock } from './icons.jsx';
 
 /**
  * @param {object} props - Props: open, onClose, t (theme), favs (Set), events, onOpen, onDelete,
@@ -41,7 +41,9 @@ export function ProfileSheet({
 
   const tc = t.card;
   const favourited = events.filter((m) => favs.has(EventStore.favKey(m)));
-  const mine = events.filter((m) => m.addedBy?.username === user.username);
+  // Own submissions regardless of moderation status (unlike `events`, which
+  // hides other users' pending items and everyone's rejected ones).
+  const mine = EventStore.ownedBy(user.username);
 
   function handleDelete(id) {
     EventStore.remove(id);
@@ -195,6 +197,9 @@ export function ProfileSheet({
                       onOpen(m);
                     }}
                   />
+                  <div style={{ marginTop: 6 }}>
+                    <StatusChip status={m.status} tc={tc} />
+                  </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
                     {onEditInForm && (
                       <button
@@ -330,6 +335,40 @@ function CityNotifPicker({ notifPref, onSubscribe, onUnsubscribe, tc }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Moderation status display config keyed by `EventStore` status value. */
+const STATUS_META = {
+  approved: { label: 'Julkaistu listalla', color: '#1f8a5b', Icon: IconCheck },
+  pending: { label: 'Odottaa hyväksyntää', color: null, Icon: IconClock },
+  rejected: { label: 'Hylätty ylläpidossa', color: '#C2483F', Icon: IconClose },
+};
+
+/**
+ * Small badge showing a submission's moderation status.
+ * @param {object} props - Props: status ('approved'|'pending'|'rejected'), tc (card theme).
+ */
+function StatusChip({ status, tc }) {
+  const meta = STATUS_META[status] ?? STATUS_META.pending;
+  const color = meta.color ?? tc.inkSoft;
+  const { Icon } = meta;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        fontSize: 11.5,
+        fontWeight: 700,
+        color,
+        background: meta.color ? hexA(meta.color, 0.1) : tc.surfaceAlt,
+        padding: '4px 9px',
+        borderRadius: 999,
+      }}
+    >
+      <Icon size={12} sw={2.4} /> {meta.label}
+    </span>
   );
 }
 

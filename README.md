@@ -22,6 +22,10 @@ Finnish community meetup calendar — aggregates Threads-posted meetups across F
 - **Info** — sub-pages: how to organise, Karaoke challenge 2026, city directory, past meetups
 - **Miitti-apuri** — AI chat assistant (Finnish) powered by Anthropic; add / edit / remove your meetups conversationally
 
+### Data source
+
+The seed meetup and city list in `src/data.js` is manually transcribed from the community listing at [sites.google.com/view/threadsmiitit](https://sites.google.com/view/threadsmiitit) and from individual Threads posts (linked per-entry). It is refreshed periodically by a maintainer — see the file's header comment and git history for details. Meetups added by users through the app live only in their own browser (`EventStore`, backed by `localStorage`) and are never uploaded anywhere.
+
 ## Development
 
 ### Prerequisites
@@ -58,6 +62,10 @@ The key is read **server-side** only — never exposed in the browser bundle. In
 - **Body validation** — prompt must be a non-empty string ≤ 4 000 characters.
 - **Rate limiting** — 30 requests per 60 s per IP via Netlify edge rules (requires Netlify Pro or higher; configured in `netlify.toml`).
 
+#### Threads OAuth (optional)
+
+The `netlify/functions/auth-*.js` functions implement Threads (Meta) OAuth login. A successful login mints a signed, httpOnly `tm_session` cookie (see `netlify/functions/lib/session.mjs`); the client learns who is signed in via `GET /api/auth/whoami`, never by reading the cookie itself. See [.env.example](.env.example) for the full list of environment variables (`THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET`, `THREADS_REDIRECT_URI`, `SESSION_SECRET`, `ALLOWED_ORIGIN`) needed to enable it locally.
+
 ### Build
 
 ```bash
@@ -79,7 +87,7 @@ npm run format
 npm test
 ```
 
-Runs unit tests (Node's built-in test runner, no extra dependencies).
+Runs unit tests and one end-to-end test on Node's built-in test runner. The end-to-end test (`test/e2e.mjs`) renders the app in a simulated DOM ([happy-dom](https://github.com/capricorn86/happy-dom)) via [@testing-library/react](https://testing-library.com/docs/react-testing-library/intro/), loading JSX through Vite's own SSR module loader — no extra build step, but it does pull in a few dev-only dependencies beyond the unit tests.
 
 ## Tech stack
 
@@ -94,6 +102,12 @@ Runs unit tests (Node's built-in test runner, no extra dependencies).
 | Lint | ESLint + Prettier + Stylelint + commitlint |
 | Tests | Node built-in `node:test` |
 
+## Generated documentation
+
+`npm run docs` generates HTML API docs from JSDoc comments into `docs/` (gitignored, disposable — regenerate any time). `.github/workflows/docs.yml` publishes this to GitHub Pages on every push to `main`.
+
+> **One-time setup:** GitHub Pages must be enabled for this to take effect — repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -101,3 +115,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).
+
+## Citation
+
+See [CITATION.cff](CITATION.cff) for how to cite this project.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Covers both code and documentation in this repository.

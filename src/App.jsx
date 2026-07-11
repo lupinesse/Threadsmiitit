@@ -13,6 +13,7 @@ import EventStore from './store/EventStore.js';
 import NotificationStore from './store/NotificationStore.js';
 import { MeetupDetail, Sheet, hexA } from './components/ui.jsx';
 import { ProfileSheet } from './components/ProfileSheet.jsx';
+import { AdminInbox } from './components/AdminInbox.jsx';
 import { ChatAssistant } from './components/ChatAssistant.jsx';
 import { ScreenMiitit } from './screens/ScreenMiitit.jsx';
 import { ScreenKalenteri } from './screens/ScreenKalenteri.jsx';
@@ -27,6 +28,7 @@ import {
   IconClose,
   IconSpark,
   IconThreads,
+  IconShield,
 } from './components/icons.jsx';
 
 const THEME = makeTheme('social', 'monodark');
@@ -46,7 +48,7 @@ const TABS = [
  */
 export default function App() {
   const t = THEME;
-  const { user, login, authError, clearAuthError } = useAuth();
+  const { user, login, authError, clearAuthError, isAdmin, loading: authLoading } = useAuth();
 
   // ── Navigation state ───────────────────────────────────────────────────
   const [tab, setTab] = useState('miitit');
@@ -56,8 +58,10 @@ export default function App() {
   /** Forces a re-read from EventStore after the assistant mutates events. */
   const [bump, setBump] = useState(0);
   const refresh = useCallback(() => setBump((n) => n + 1), []);
-  // Re-derive event list whenever bump changes (i.e. after AI assistant mutations).
-  const events = useMemo(() => EventStore.all(), [bump]);
+  // Re-derive event list whenever bump changes (i.e. after AI assistant mutations
+  // or moderation actions). Includes the current user's own pending submissions.
+  const events = useMemo(() => EventStore.all(user?.username), [bump, user?.username]);
+  const pendingCount = useMemo(() => (isAdmin ? EventStore.pending().length : 0), [bump, isAdmin]);
 
   // ── Interaction state ─────────────────────────────────────────────────
   const [selected, setSelected] = useState(null);
@@ -77,6 +81,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   // ── City notifications ─────────────────────────────────────────────
   const [notifPref, setNotifPref] = useState(() => NotificationStore.getPreference());
@@ -240,7 +245,7 @@ export default function App() {
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-                {user ? (
+                {authLoading ? null : user ? (
                   <button
                     aria-label={`Kirjautuneena: @${user.username}. Avaa oma profiili.`}
                     onClick={() => setProfileOpen(true)}
@@ -293,6 +298,55 @@ export default function App() {
                     }}
                   >
                     <IconThreads size={14} sw={1.5} /> Kirjaudu
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    aria-label={
+                      pendingCount > 0 ? `Ylläpito, ${pendingCount} miittiä odottaa` : 'Ylläpito'
+                    }
+                    title="Ylläpito"
+                    onClick={() => setAdminOpen(true)}
+                    style={{
+                      all: 'unset',
+                      cursor: 'pointer',
+                      width: 38,
+                      height: 38,
+                      borderRadius: 999,
+                      flexShrink: 0,
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: t.ink,
+                      background: t.surface,
+                      border: `1px solid ${t.line}`,
+                    }}
+                  >
+                    <IconShield size={19} />
+                    {pendingCount > 0 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -3,
+                          right: -3,
+                          minWidth: 18,
+                          height: 18,
+                          padding: '0 5px',
+                          borderRadius: 999,
+                          background: '#C2483F',
+                          color: '#fff',
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          lineHeight: '18px',
+                          textAlign: 'center',
+                          border: `2px solid ${t.bg}`,
+                          boxSizing: 'content-box',
+                        }}
+                      >
+                        {pendingCount}
+                      </span>
+                    )}
                   </button>
                 )}
                 {tab === 'miitit' && (
@@ -539,6 +593,16 @@ export default function App() {
             refresh={refresh}
           />
         </Sheet>
+
+        {/* ── Admin moderation inbox ────────────────────────────────── */}
+        {isAdmin && (
+          <AdminInbox
+            t={t}
+            open={adminOpen}
+            onClose={() => setAdminOpen(false)}
+            refresh={refresh}
+          />
+        )}
 
         {/* ── Chat assistant sheet ───────────────────────────────────── */}
         <ChatAssistant t={t} open={chatOpen} onClose={() => setChatOpen(false)} refresh={refresh} />

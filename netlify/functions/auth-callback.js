@@ -3,15 +3,17 @@
  *
  * Handles the Threads OAuth redirect. Verifies the CSRF state cookie,
  * exchanges the authorization code for a long-lived access token, fetches
- * the user profile, then redirects back to the app with the profile data
- * encoded in the URL hash. The access token is never sent to the browser.
+ * the user profile, then mints a signed session cookie and redirects back
+ * to the app. The access token is never sent to the browser.
  *
  * Required env vars: THREADS_CLIENT_ID, THREADS_CLIENT_SECRET,
- *   THREADS_REDIRECT_URI, URL (set automatically by Netlify)
+ *   THREADS_REDIRECT_URI, SESSION_SECRET, URL (set automatically by Netlify)
  *
  * @param {Request} req
  * @returns {Promise<Response>}
  */
+import { signSession, sessionCookie } from './lib/session.mjs';
+
 export default async function handler(req) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
@@ -93,15 +95,28 @@ export default async function handler(req) {
     profileUrl: `https://www.threads.com/@${username}`,
   };
 
-  const encoded = Buffer.from(JSON.stringify(user)).toString('base64');
+  let sessionToken;
+  try {
+    sessionToken = signSession(user);
+  } catch (err) {
+    // Most commonly a missing/misconfigured SESSION_SECRET — fail closed to
+    // the same error UX as every other failure path in this handler instead
+    // of surfacing a raw 500 to the browser.
+    console.error('auth-callback: failed to sign session token', err);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${origin}/#auth=error`, 'Set-Cookie': clearState },
+    });
+  }
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: `${origin}/#auth=${encoded}`,
-      'Set-Cookie': clearState,
-    },
-  });
+  const headers = new Headers({ Location: `${origin}/` });
+  headers.append(
+    'Set-Cookie',
+    sessionCookie(sessionToken, { secure: process.env.CONTEXT !== 'dev' })
+  );
+  headers.append('Set-Cookie', clearState);
+
+  return new Response(null, { status: 302, headers });
 }
 
 export const config = { path: '/api/auth/callback' };

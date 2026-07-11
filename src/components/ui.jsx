@@ -200,7 +200,8 @@ export function DateLeaf({ date, cat, t }) {
 /**
  * Core meetup card — a tappable row with DateLeaf, category tag, city,
  * title, organizer line, and a chevron. Shows a heart badge when the
- * meetup is in the user's favourites.
+ * meetup is in the user's favourites, and a dashed border + "Odottaa
+ * hyväksyntää" pill when `m.status === 'pending'`.
  *
  * @param {object} props
  * @param {object} props.m - Meetup data object.
@@ -210,6 +211,7 @@ export function DateLeaf({ date, cat, t }) {
  * @param {boolean} [props.fav] - Whether this meetup is favourited.
  */
 export function MeetupCard({ m, t, onClick, dim = false, fav = false }) {
+  const pending = m.status === 'pending';
   return (
     <button
       onClick={onClick}
@@ -224,9 +226,9 @@ export function MeetupCard({ m, t, onClick, dim = false, fav = false }) {
         padding: '12px 14px',
         borderRadius: t.radius,
         background: t.bg ?? t.surface,
-        border: `1px solid ${t.line}`,
+        border: pending ? `1px dashed ${t.line}` : `1px solid ${t.line}`,
         boxShadow: t.cardShadow,
-        opacity: dim ? 0.55 : 1,
+        opacity: dim ? 0.55 : pending ? 0.8 : 1,
         fontFamily: 'inherit',
         textAlign: 'left',
       }}
@@ -272,6 +274,21 @@ export function MeetupCard({ m, t, onClick, dim = false, fav = false }) {
               }}
             >
               <IconHeart size={13} />
+            </span>
+          )}
+          {pending && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: t.inkSoft,
+                background: t.surfaceAlt,
+                padding: '2px 7px',
+                borderRadius: 999,
+                flexShrink: 0,
+              }}
+            >
+              Odottaa hyväksyntää
             </span>
           )}
         </div>

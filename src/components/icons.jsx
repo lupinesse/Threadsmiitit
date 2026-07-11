@@ -169,3 +169,10 @@ export const IconBell = (p) => (
     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </Icon>
 );
+
+export const IconShield = (p) => (
+  <Icon {...p}>
+    <path d="M12 3l7 2.6v5.2c0 4.3-3 7.4-7 8.7-4-1.3-7-4.4-7-8.7V5.6L12 3z" />
+    <polyline points="9 11.6 11.2 13.8 15 9.6" />
+  </Icon>
+);
