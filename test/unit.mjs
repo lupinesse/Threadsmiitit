@@ -409,6 +409,42 @@ describe('EventStore.favKey', () => {
   });
 });
 
+// ── "Tällä viikolla" (this-week) rail React keys ────────────────────────────
+// Regression for a bug where WeekCard in ScreenMiitit was keyed with raw
+// `m.id`. Seed meetups (from MEETUPS in src/data.js) have no `id`, so every
+// seed meetup in the this-week rail produced `key={undefined}`, causing React
+// "duplicate key" warnings — and stale DOM reuse — whenever two or more seed
+// meetups fell in the current week at once. The fix keys WeekCard with
+// EventStore.favKey(m), the same stable-key convention used for favourites.
+
+describe('this-week rail keys (regression: undefined keys for seed meetups)', () => {
+  /** Fixture: several seed meetups (no `id`) that would all land in the same
+   * this-week rail — some sharing a date, mirroring real seed data. */
+  const weekMeetups = [
+    { title: 'Miitti A', date: '2026-06-22', city: 'helsinki', cat: 'yleinen' },
+    { title: 'Miitti B', date: '2026-06-24', city: 'helsinki', cat: 'karaoke' },
+    { title: 'Miitti C', date: '2026-06-24', city: 'tampere', cat: 'sauna' },
+  ];
+
+  it('raw m.id would collide as undefined for every seed meetup (the bug)', () => {
+    const rawKeys = weekMeetups.map((m) => m.id);
+    assert.deepStrictEqual(rawKeys, [undefined, undefined, undefined]);
+  });
+
+  it('EventStore.favKey gives every seed meetup a defined key (the fix)', () => {
+    const keys = weekMeetups.map((m) => EventStore.favKey(m));
+    assert.ok(
+      keys.every((k) => k !== undefined),
+      `expected no undefined keys, got: ${keys}`
+    );
+  });
+
+  it('EventStore.favKey gives distinct keys even when meetups share a date', () => {
+    const keys = weekMeetups.map((m) => EventStore.favKey(m));
+    assert.strictEqual(new Set(keys).size, keys.length, `expected unique keys, got: ${keys}`);
+  });
+});
+
 // ── Regression: MeetupCard/list-item React keys ─────────────────────────────
 // Seed meetups (from MEETUPS) have no `id` field, so any list that keyed its
 // items with `m.id` produced `key={undefined}` for every seed meetup, and a

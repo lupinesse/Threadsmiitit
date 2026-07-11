@@ -274,7 +274,7 @@ export function ScreenMiitit({
             }}
           >
             {thisWeek.map((m) => (
-              <WeekCard key={m.id} m={m} t={t.card} onClick={() => onOpen(m)} />
+              <WeekCard key={EventStore.favKey(m)} m={m} t={t.card} onClick={() => onOpen(m)} />
             ))}
           </div>
         </div>
