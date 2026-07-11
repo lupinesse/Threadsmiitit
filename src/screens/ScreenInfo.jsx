@@ -4,6 +4,7 @@
  */
 
 import { CITIES, ADMINS, DH } from '../data.js';
+import EventStore from '../store/EventStore.js';
 import { hexA, MeetupCard, cityName } from '../components/ui.jsx';
 import {
   IconThreads,
@@ -90,7 +91,14 @@ function SubMenneet({ t, onOpen, onBack, events }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {past.map((m) => (
-              <MeetupCard key={m.id} m={m} t={t.card} onClick={() => onOpen(m)} dim fav={false} />
+              <MeetupCard
+                key={EventStore.favKey(m)}
+                m={m}
+                t={t.card}
+                onClick={() => onOpen(m)}
+                dim
+                fav={false}
+              />
             ))}
           </div>
         )}
@@ -347,7 +355,7 @@ function SubKaraoke({ t, onBack, events }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {upcoming.map((m) => (
               <div
-                key={m.id}
+                key={EventStore.favKey(m)}
                 style={{
                   padding: 14,
                   borderRadius: t.radius,
