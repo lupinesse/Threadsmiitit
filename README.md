@@ -102,6 +102,12 @@ Runs unit tests (Node's built-in test runner, no extra dependencies).
 | Lint | ESLint + Prettier + Stylelint + commitlint |
 | Tests | Node built-in `node:test` |
 
+## Generated documentation
+
+`npm run docs` generates HTML API docs from JSDoc comments into `docs/` (gitignored, disposable — regenerate any time). `.github/workflows/docs.yml` publishes this to GitHub Pages on every push to `main`.
+
+> **One-time setup:** GitHub Pages must be enabled for this to take effect — repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
