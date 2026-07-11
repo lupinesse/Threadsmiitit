@@ -101,3 +101,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).
+
+## Citation
+
+See [CITATION.cff](CITATION.cff) for how to cite this project.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Covers both code and documentation in this repository.
