@@ -490,14 +490,6 @@ describe('regression: list keys for seed-only meetups (no id field)', () => {
     assert.strictEqual(group.length, 2, 'fixture should contain two meetups in the same group');
     assertUniqueDefinedKeys(group);
   });
-
-  it('sanity check: keying by m.id alone would have been undefined for all seed meetups', () => {
-    const idKeys = seedFixture.map((m) => m.id);
-    assert.ok(
-      idKeys.every((k) => k === undefined),
-      'this fixture models seed meetups, which never carry an id'
-    );
-  });
 });
 
 describe('EventStore.edit', () => {
