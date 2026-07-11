@@ -589,6 +589,86 @@ describe('EventStore canonicalKunta', () => {
   });
 });
 
+// ── ChatAssistant.applyAction ────────────────────────────────────────────────
+// Regression: chat-added meetups must be attributed with addedBy, the same
+// way ScreenLisaa's manual submit() does, so they stay visible to their
+// creator (main list + ProfileSheet "Miittini") instead of only surfacing
+// once an admin approves them.
+
+const { applyAction } = await import('../src/lib/chatActions.js');
+
+describe('ChatAssistant.applyAction — add', () => {
+  const USER = {
+    id: 'u1',
+    username: 'kirjoittaja',
+    avatarUrl: 'https://example.com/av.jpg',
+    profileUrl: 'https://www.threads.com/@kirjoittaja',
+  };
+
+  it('attaches addedBy for the current user, matching ScreenLisaa', () => {
+    const result = applyAction(
+      {
+        op: 'add',
+        title: 'Chat-miitti',
+        date: '2026-08-10',
+        city: 'helsinki',
+        cat: 'yleinen',
+        org: '@test',
+        url: 'https://www.threads.com/chat-test',
+      },
+      null,
+      USER
+    );
+    assert.strictEqual(result.changed, true);
+    assert.deepStrictEqual(result.event.addedBy, USER);
+  });
+
+  it('omits addedBy when no user is logged in', () => {
+    const result = applyAction(
+      {
+        op: 'add',
+        title: 'Anon-miitti',
+        date: '2026-08-11',
+        city: 'helsinki',
+        cat: 'yleinen',
+        org: '@test',
+        url: 'https://www.threads.com/anon-test',
+      },
+      null,
+      null
+    );
+    assert.strictEqual(result.changed, true);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(result.event, 'addedBy'), false);
+  });
+
+  it('a chat-added event is then found under the creator via addedBy.username', () => {
+    const result = applyAction(
+      {
+        op: 'add',
+        title: 'Omani',
+        date: '2026-08-12',
+        city: 'helsinki',
+        cat: 'yleinen',
+        org: '@test',
+        url: 'https://www.threads.com/omani',
+      },
+      null,
+      USER
+    );
+    const mine = EventStore.load().filter((e) => e.addedBy?.username === USER.username);
+    assert.ok(
+      mine.some((e) => e.id === result.event.id),
+      'chat-added event should be attributed to its creator'
+    );
+  });
+
+  it('rejects add without a valid Threads url regardless of user', () => {
+    const result = applyAction({ op: 'add', title: 'Ei linkkiä', date: '2026-08-13' }, null, USER);
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.kind, 'error');
+  });
+});
+
 // ── NotificationStore ────────────────────────────────────────────────────────
 
 const NotificationStore = (await import('../src/store/NotificationStore.js')).default;
