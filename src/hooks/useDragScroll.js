@@ -9,7 +9,7 @@
  * handled here.
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 /** Pixels of movement before a press is treated as a drag rather than a click. */
 export const DRAG_THRESHOLD_PX = 4;
@@ -43,23 +43,31 @@ export function isDrag(dx, threshold = DRAG_THRESHOLD_PX) {
 /**
  * Enables mouse click-and-drag horizontal scrolling on an element.
  *
- * Attach the returned ref to a horizontally scrollable (`overflow-x: auto`)
- * container. Mouse users can then grab and drag to scroll; a drag past the
- * threshold suppresses the subsequent `click` so child buttons (e.g. city
- * filter pills) are not accidentally activated when the user was only
+ * Returns a **callback ref** to attach to a horizontally scrollable
+ * (`overflow-x: auto`) container. Using a callback ref (rather than a plain
+ * ref + effect) means the listeners re-attach correctly if the element is
+ * conditionally rendered and later remounts. Mouse users can grab and drag to
+ * scroll; a drag past the threshold suppresses the trailing `click` so child
+ * buttons (e.g. city filter pills) are not activated when the user was only
  * scrolling. Touch and pen input are left to native scrolling.
  *
- * @returns {object} A React ref to attach to the scroll container.
+ * @returns {Function} A React callback ref to attach to the scroll container.
  */
 export function useDragScroll() {
-  const ref = useRef(null);
+  // Holds the teardown for the currently-attached node so we can detach when
+  // the element changes or unmounts.
+  const cleanupRef = useRef(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
+  return useCallback((el) => {
+    if (cleanupRef.current) {
+      cleanupRef.current();
+      cleanupRef.current = null;
+    }
+    if (!el) return;
 
     let dragging = false;
     let moved = false;
+    let suppressClick = false;
     let startX = 0;
     let startScroll = 0;
 
@@ -68,6 +76,7 @@ export function useDragScroll() {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
       dragging = true;
       moved = false;
+      suppressClick = false;
       startX = e.clientX;
       startScroll = el.scrollLeft;
       // Capture so the drag keeps tracking even if the pointer leaves the row.
@@ -95,15 +104,24 @@ export function useDragScroll() {
       el.style.cursor = '';
       el.style.userSelect = '';
       if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      if (moved) {
+        // A real drag ends in a click; arm a one-shot to swallow it so scrolling
+        // never toggles a pill. If no click follows (pointer released
+        // off-target), clear the flag on the next task so a later keyboard
+        // activation of a child button is not suppressed.
+        suppressClick = true;
+        setTimeout(() => {
+          suppressClick = false;
+        }, 0);
+      }
+      moved = false;
     }
 
-    // A real drag ends in a click; swallow it (capture phase, before children)
-    // so scrolling never toggles a pill. A plain click (no move) passes through.
     function onClickCapture(e) {
-      if (moved) {
+      if (suppressClick) {
         e.preventDefault();
         e.stopPropagation();
-        moved = false;
+        suppressClick = false;
       }
     }
 
@@ -113,7 +131,7 @@ export function useDragScroll() {
     el.addEventListener('pointercancel', endDrag);
     el.addEventListener('click', onClickCapture, true);
 
-    return () => {
+    cleanupRef.current = () => {
       el.removeEventListener('pointerdown', onPointerDown);
       el.removeEventListener('pointermove', onPointerMove);
       el.removeEventListener('pointerup', endDrag);
@@ -121,6 +139,4 @@ export function useDragScroll() {
       el.removeEventListener('click', onClickCapture, true);
     };
   }, []);
-
-  return ref;
 }
