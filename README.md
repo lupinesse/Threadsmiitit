@@ -58,6 +58,10 @@ The key is read **server-side** only — never exposed in the browser bundle. In
 - **Body validation** — prompt must be a non-empty string ≤ 4 000 characters.
 - **Rate limiting** — 30 requests per 60 s per IP via Netlify edge rules (requires Netlify Pro or higher; configured in `netlify.toml`).
 
+#### Threads OAuth (optional)
+
+The `netlify/functions/auth-*.js` functions implement Threads (Meta) OAuth login. See [.env.example](.env.example) for the full list of environment variables (`THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET`, `THREADS_REDIRECT_URI`, `ALLOWED_ORIGIN`) needed to enable it locally.
+
 ### Build
 
 ```bash

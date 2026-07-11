@@ -27,6 +27,11 @@ verify-*.png
 # Personal config overrides — never commit
 src/js/00-config.local.js
 
+# Local environment secrets — never commit; see .env.example for the template
+.env
+.env.*
+!.env.example
+
 # Claude Code session data — ignore local state but track shared skills
 .claude/*
 !.claude/skills/
