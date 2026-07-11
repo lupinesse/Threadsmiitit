@@ -40,17 +40,15 @@ const React = await import('react');
 const { default: App } = await vite.ssrLoadModule('/src/App.jsx');
 const { AuthProvider } = await vite.ssrLoadModule('/src/contexts/AuthContext.jsx');
 const { default: EventStore } = await vite.ssrLoadModule('/src/store/EventStore.js');
+const { ScreenLisaa } = await vite.ssrLoadModule('/src/screens/ScreenLisaa.jsx');
+const { makeTheme } = await vite.ssrLoadModule('/src/theme.js');
 
 const TEST_TITLE = 'E2E-testimiitti';
 /** Far enough in the future to be "upcoming" but outside the "this week" rail. */
 const TEST_DATE = '2099-06-15';
 
 describe('End-to-end: browse, open, and favourite a meetup', () => {
-  after(async () => {
-    cleanup();
-    await vite.close();
-    await GlobalRegistrator.unregister();
-  });
+  after(cleanup);
 
   it('renders a meetup, opens its detail sheet, and favourites it', async () => {
     localStorage.clear();
@@ -92,4 +90,62 @@ describe('End-to-end: browse, open, and favourite a meetup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sulje' }));
     await screen.findByLabelText('Suosikki');
   });
+});
+
+describe('ScreenLisaa — login-gate hook order (regression)', () => {
+  after(cleanup);
+
+  it('preserves in-progress form state if `user` briefly drops out and comes back', async () => {
+    // The add-mode ScreenLisaa instance can see `user` flip without
+    // remounting — e.g. a session re-check briefly nulls `user` out and
+    // then AuthContext re-hydrates it. If any `useState` call sits after
+    // the login-gate's early return, going logged-in -> gate makes React
+    // call zero *tracked* hooks that render (the gate's only hook,
+    // useAuth's useContext, isn't part of React's hook-count bookkeeping),
+    // which silently discards the fiber's hook state. Going back to the
+    // form then re-mounts step/f/saved/customCity from their initial
+    // values instead of resuming — a logged-in user's half-filled form
+    // silently empties itself. This does not throw (so a naive
+    // assert.doesNotThrow around the rerender would pass either way) —
+    // the only way to catch it is to check the typed value survives.
+    const t = makeTheme('social', 'monodark');
+    const props = { t, onDone: () => {}, onOpenChat: () => {}, refresh: () => {} };
+    const loggedIn = { id: 'u1', username: 'kirjautunut', avatarUrl: '', profileUrl: '' };
+
+    const { rerender } = render(
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(ScreenLisaa, { ...props, user: loggedIn })
+      )
+    );
+    const titleInput = await screen.findByLabelText('Miitin nimi');
+    fireEvent.change(titleInput, { target: { value: 'Kirjoitettu otsikko' } });
+    assert.equal(titleInput.value, 'Kirjoitettu otsikko');
+
+    // `user` drops out and comes back on the same mounted instance.
+    rerender(
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(ScreenLisaa, { ...props, user: null })
+      )
+    );
+    await screen.findByText('Kirjaudu sisään lisätäksesi miitin');
+    rerender(
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(ScreenLisaa, { ...props, user: loggedIn })
+      )
+    );
+
+    const titleInputAgain = await screen.findByLabelText('Miitin nimi');
+    assert.equal(titleInputAgain.value, 'Kirjoitettu otsikko');
+  });
+});
+
+after(async () => {
+  await vite.close();
+  await GlobalRegistrator.unregister();
 });

@@ -217,6 +217,37 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
   const { login } = useAuth();
   const isEdit = !!editTarget;
 
+  // Determine whether editTarget's city is a built-in (non-custom) entry so we
+  // can decide whether to show pills (built-in) or the autocomplete (custom).
+  const editCityIsBuiltIn = isEdit
+    ? !!CITIES.find((c) => !c.custom && c.key === editTarget.city)
+    : false;
+
+  // All hooks must run unconditionally, before the anonymous-submission gate
+  // below — `user` can flip on the same mounted instance (AuthContext
+  // hydrates asynchronously via whoami, and it can drop out and come back).
+  // An early return above these hooks would make React skip them whenever
+  // the gate is showing, silently resetting this state — a half-filled
+  // form would empty itself — the next time the gate turns back off.
+  const [step, setStep] = useState(0);
+  const [f, setF] = useState(() => {
+    if (!editTarget) return { title: '', city: '', cat: '', date: '', org: '', url: '' };
+    return {
+      title: editTarget.title ?? '',
+      city: editCityIsBuiltIn
+        ? (editTarget.city ?? '')
+        : cityName(editTarget.city) || editTarget.city || '',
+      cat: editTarget.cat ?? '',
+      date: editTarget.date ?? '',
+      org: (editTarget.org ?? []).join(', '),
+      url: editTarget.url ?? '',
+    };
+  });
+  const [saved, setSaved] = useState(null);
+  const [customCity, setCustomCity] = useState(isEdit && !editCityIsBuiltIn);
+
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
   // Anonymous submission is not allowed — every meetup must be attributable
   // to a logged-in Threads user. Editing an existing meetup keeps working
   // for whoever already holds its ID, unrelated to this gate.
@@ -277,31 +308,6 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       </div>
     );
   }
-
-  // Determine whether editTarget's city is a built-in (non-custom) entry so we
-  // can decide whether to show pills (built-in) or the autocomplete (custom).
-  const editCityIsBuiltIn = isEdit
-    ? !!CITIES.find((c) => !c.custom && c.key === editTarget.city)
-    : false;
-
-  const [step, setStep] = useState(0);
-  const [f, setF] = useState(() => {
-    if (!editTarget) return { title: '', city: '', cat: '', date: '', org: '', url: '' };
-    return {
-      title: editTarget.title ?? '',
-      city: editCityIsBuiltIn
-        ? (editTarget.city ?? '')
-        : cityName(editTarget.city) || editTarget.city || '',
-      cat: editTarget.cat ?? '',
-      date: editTarget.date ?? '',
-      org: (editTarget.org ?? []).join(', '),
-      url: editTarget.url ?? '',
-    };
-  });
-  const [saved, setSaved] = useState(null);
-  const [customCity, setCustomCity] = useState(isEdit && !editCityIsBuiltIn);
-
-  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
   const cityOk = customCity ? !!EventStore.canonicalKunta(f.city) : !!f.city.trim();
   const urlOk = URL_RE.test(f.url.trim());

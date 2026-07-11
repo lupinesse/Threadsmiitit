@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `npm run lint`/`format` never actually covered `netlify/functions/**/*.mjs` (only `.js`), despite `eslint.config.js` having a dedicated rule block for the directory; `netlify/functions/lib/*.mjs` had undetected `no-undef` errors as a result.
 - `jsdoc.config.json`'s `includePattern` only matched `.js`, so every `.jsx` React component was silently excluded from generated documentation.
+- `ScreenLisaa`'s new login gate called its `useState` hooks after the gate's early return; if `user` ever flips back to logged-in on the same mounted instance (the add form was open, `user` briefly dropped to `null`, then came back), React silently discarded the fiber's hook state and the form reset to blank instead of keeping what the user had typed. All hooks now run unconditionally before the gate.
 
 ### Security
 - Anonymous meetup submissions are no longer allowed: `EventStore.add()` now throws unless `addedBy.username` is present, `ScreenLisaa`'s add form shows a "log in with Threads" prompt instead of the form when logged out, and the chat assistant's `add` action refuses with a Finnish error message when no user is logged in. This is a client-side (UX + data-layer) gate, not a server-side one — see the note below on `requireUser`/`requireAdmin` not yet being wired into a write endpoint.
