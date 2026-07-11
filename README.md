@@ -22,6 +22,10 @@ Finnish community meetup calendar — aggregates Threads-posted meetups across F
 - **Info** — sub-pages: how to organise, Karaoke challenge 2026, city directory, past meetups
 - **Miitti-apuri** — AI chat assistant (Finnish) powered by Anthropic; add / edit / remove your meetups conversationally
 
+### Data source
+
+The seed meetup and city list in `src/data.js` is manually transcribed from the community listing at [sites.google.com/view/threadsmiitit](https://sites.google.com/view/threadsmiitit) and from individual Threads posts (linked per-entry). It is refreshed periodically by a maintainer — see the file's header comment and git history for details. Meetups added by users through the app live only in their own browser (`EventStore`, backed by `localStorage`) and are never uploaded anywhere.
+
 ## Development
 
 ### Prerequisites
