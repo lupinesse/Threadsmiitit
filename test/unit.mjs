@@ -32,7 +32,7 @@ globalThis.localStorage = {
 
 // ── DH helpers ──────────────────────────────────────────────────────────────
 
-const { DH } = await import('../src/data.js');
+const { DH, CITIES, CATEGORIES, MEETUPS } = await import('../src/data.js');
 
 describe('DH.parse', () => {
   it('parses YYYY-MM-DD to a local Date', () => {
@@ -119,6 +119,49 @@ describe('DH.isThisWeek', () => {
     const d = String(future.getDate()).padStart(2, '0');
     const iso = `${y}-${mo}-${d}`;
     assert.strictEqual(DH.isThisWeek(iso), false);
+  });
+});
+
+// ── Seed data integrity ─────────────────────────────────────────────────────
+// The MEETUPS seed list is hand-maintained (synced from the Threadsmiitit
+// website), so these invariants guard against typos: a meetup that references
+// a non-existent city key or category key would render with a broken lookup.
+
+describe('MEETUPS seed integrity', () => {
+  const cityKeys = new Set(CITIES.map((c) => c.key));
+  const catKeys = new Set(Object.keys(CATEGORIES));
+
+  it('every meetup references a known city key', () => {
+    const unknown = MEETUPS.filter((m) => !cityKeys.has(m.city)).map((m) => m.title);
+    assert.deepStrictEqual(unknown, [], `meetups with unknown city: ${unknown.join(', ')}`);
+  });
+
+  it('every meetup references a known category key', () => {
+    const unknown = MEETUPS.filter((m) => !catKeys.has(m.cat)).map((m) => m.title);
+    assert.deepStrictEqual(unknown, [], `meetups with unknown category: ${unknown.join(', ')}`);
+  });
+
+  it('every meetup date is a valid YYYY-MM-DD string', () => {
+    const bad = MEETUPS.filter((m) => !/^\d{4}-\d{2}-\d{2}$/.test(m.date)).map((m) => m.title);
+    assert.deepStrictEqual(bad, [], `meetups with malformed date: ${bad.join(', ')}`);
+  });
+
+  it('every meetup has at least one @-prefixed organiser handle', () => {
+    const bad = MEETUPS.filter(
+      (m) => !Array.isArray(m.org) || m.org.length === 0 || m.org.some((h) => !h.startsWith('@'))
+    ).map((m) => m.title);
+    assert.deepStrictEqual(bad, [], `meetups with invalid org: ${bad.join(', ')}`);
+  });
+
+  it('every meetup url is empty or a threads.com/threads.net link', () => {
+    const bad = MEETUPS.filter(
+      (m) => m.url !== '' && !/^https?:\/\/(www\.)?threads\.(com|net)\//i.test(m.url)
+    ).map((m) => m.title);
+    assert.deepStrictEqual(bad, [], `meetups with non-Threads url: ${bad.join(', ')}`);
+  });
+
+  it('every city key is unique', () => {
+    assert.strictEqual(new Set(CITIES.map((c) => c.key)).size, CITIES.length);
   });
 });
 
