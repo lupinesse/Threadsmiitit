@@ -38,14 +38,20 @@ export default async function handler(req) {
   }
 
   const isNetlifyDev = process.env.NETLIFY_DEV === 'true';
-  if (
-    !isOriginAllowed(
-      req.headers.get('origin'),
-      req.headers.get('referer'),
-      ALLOWED_ORIGIN,
-      isNetlifyDev
-    )
-  ) {
+  const originAllowed = isOriginAllowed(
+    req.headers.get('origin'),
+    req.headers.get('referer'),
+    ALLOWED_ORIGIN,
+    isNetlifyDev
+  );
+  console.info('[/api/chat] config in effect', {
+    allowedOrigin: ALLOWED_ORIGIN,
+    netlifyDev: isNetlifyDev,
+    anthropicKeyConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+    originAllowed,
+  });
+
+  if (!originAllowed) {
     return new Response(JSON.stringify({ error: 'Forbidden' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' },
