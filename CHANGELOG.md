@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `LICENSE` (MIT), `CODE_OF_CONDUCT.md` (Contributor Covenant), and `CITATION.cff`, linked from the README.
+- `.env.example` documenting every Netlify Function environment variable, with dummy values.
+- An end-to-end test (`test/e2e.mjs`) that renders the app in a simulated DOM and drives a full browse → open → favourite flow, run as part of `npm test`.
+- Generated JSDoc API docs are now published to GitHub Pages on every push to `main` (`.github/workflows/docs.yml`); requires a one-time repo setting (Settings → Pages → Source: GitHub Actions).
+- A short data-provenance note in `src/data.js` and the README explaining where the seed meetup/city data comes from.
+
+### Changed
+- `/api/chat` now logs the effective config (allowed origin, dev-mode flag, whether the Anthropic key is configured — never the key itself) and the origin-check outcome on each request.
+
+### Fixed
+- `npm run lint`/`format` never actually covered `netlify/functions/**/*.mjs` (only `.js`), despite `eslint.config.js` having a dedicated rule block for the directory; `netlify/functions/lib/*.mjs` had undetected `no-undef` errors as a result.
+- `jsdoc.config.json`'s `includePattern` only matched `.js`, so every `.jsx` React component was silently excluded from generated documentation.
+
 ### Security
 - `/api/chat` proxy now enforces an Origin/Referer allowlist (set `ALLOWED_ORIGIN` env var; defaults to `https://threadsmiitit.netlify.app`), rejects prompts that are not a non-empty string or exceed 4 000 characters, and configures per-IP rate limiting via Netlify edge rules in `netlify.toml`.
 - Validation logic extracted to `netlify/functions/lib/validate-chat-request.mjs` (unit-tested); dev Vite plugin shares the same prompt validator.
