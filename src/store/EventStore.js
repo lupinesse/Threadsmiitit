@@ -144,7 +144,10 @@ function load() {
   try {
     const raw = localStorage.getItem(KEY);
     const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
+    if (!Array.isArray(arr)) return [];
+    // Migration: events saved before moderation existed had no `status` field.
+    // Treat them as already published so nothing already-live disappears.
+    return arr.map((e) => (e && e.status ? e : { ...e, status: 'approved' }));
   } catch (err) {
     console.warn('[EventStore] Could not load user events:', err);
     return [];
@@ -262,21 +265,30 @@ function normalize(p) {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Adds a new user event and persists it.
+ * Adds a new user event and persists it. New submissions start as `pending`
+ * — an admin must approve them before they appear in the public feed.
  * @param {object} partial - Partial event fields (will be normalised).
  * @returns {object} The saved event with an assigned `id`.
  */
 function add(partial) {
   const arr = load();
   const ids = new Set(arr.map((e) => e.id).concat(MEETUPS.map((m) => m.id).filter(Boolean)));
-  const ev = { id: genId(ids), user: true, ...normalize(partial) };
+  const ev = {
+    id: genId(ids),
+    user: true,
+    status: 'pending',
+    submitted: Date.now(),
+    ...normalize(partial),
+  };
   arr.push(ev);
   save(arr);
   return ev;
 }
 
 /**
- * Edits an existing user event by ID and persists the change.
+ * Edits an existing user event by ID and persists the change. Preserves the
+ * event's `status`, `submitted` timestamp, and `addedBy` — except that
+ * editing a previously-rejected event resets it to `pending` for re-review.
  * @param {string} id - 4-char event ID.
  * @param {object} patch - Fields to update (will be merged and normalised).
  * @returns {object|null} The updated event, or null if the ID was not found.
@@ -288,6 +300,14 @@ function edit(id, patch) {
   const merged = { ...arr[i], ...normalize({ ...arr[i], ...patch }) };
   merged.id = arr[i].id;
   merged.user = true;
+  merged.submitted = arr[i].submitted;
+  if (arr[i].status === 'rejected') {
+    merged.status = 'pending';
+    delete merged.reviewedAt;
+    delete merged.rejectReason;
+  } else {
+    merged.status = arr[i].status ?? 'pending';
+  }
   arr[i] = merged;
   save(arr);
   return merged;
@@ -317,11 +337,79 @@ function find(id) {
 }
 
 /**
- * Returns all meetups — seed events followed by user events — sorted by date.
+ * Returns all meetups visible in the public feed — seed events followed by
+ * approved user events, plus the current user's own pending submissions
+ * (shown to their submitter, flagged, while awaiting review). Rejected
+ * events and other users' pending submissions are never included here; use
+ * `ownedBy()` to see a user's full submission history regardless of status.
+ * @param {string} [currentUsername] - The signed-in user's Threads handle (no `@`).
  * @returns {object[]}
  */
-function all() {
-  return MEETUPS.concat(load());
+function all(currentUsername) {
+  const visible = load().filter(
+    (e) =>
+      e.status === 'approved' || (e.status === 'pending' && e.addedBy?.username === currentUsername)
+  );
+  return MEETUPS.concat(visible);
+}
+
+/**
+ * Returns every event submitted by a given Threads handle, regardless of
+ * moderation status — used by the "Miittini" profile section so a user can
+ * see their own pending/rejected submissions alongside published ones.
+ * @param {string} username - Threads handle (no `@`).
+ * @returns {object[]}
+ */
+function ownedBy(username) {
+  if (!username) return [];
+  return load().filter((e) => e.addedBy?.username === username);
+}
+
+/**
+ * Returns all pending submissions across every user, oldest first — the
+ * admin moderation queue.
+ * @returns {object[]}
+ */
+function pending() {
+  return load()
+    .filter((e) => e.status === 'pending')
+    .sort((a, b) => (a.submitted ?? 0) - (b.submitted ?? 0));
+}
+
+/**
+ * Sets an event's moderation status and records the review time.
+ * @param {string} id
+ * @param {'approved'|'rejected'} status
+ * @param {object} [extra] - Additional fields to merge in (e.g. rejectReason).
+ * @returns {object|null} The updated event, or null if the ID was not found.
+ */
+function setStatus(id, status, extra) {
+  const arr = load();
+  const i = arr.findIndex((e) => e.id === id);
+  if (i < 0) return null;
+  arr[i] = { ...arr[i], status, reviewedAt: Date.now(), ...(extra ?? {}) };
+  save(arr);
+  return arr[i];
+}
+
+/**
+ * Approves a pending submission, publishing it to the public feed.
+ * @param {string} id
+ * @returns {object|null} The updated event, or null if the ID was not found.
+ */
+function approve(id) {
+  return setStatus(id, 'approved');
+}
+
+/**
+ * Rejects a pending submission, hiding it from the public feed. The
+ * submitter can still see it (as rejected) via `ownedBy()`.
+ * @param {string} id
+ * @param {string} [reason] - Optional reason shown to the submitter, capped at 120 chars.
+ * @returns {object|null} The updated event, or null if the ID was not found.
+ */
+function reject(id, reason) {
+  return setStatus(id, 'rejected', reason ? { rejectReason: String(reason).slice(0, 120) } : {});
 }
 
 /**
@@ -348,6 +436,10 @@ const EventStore = {
   remove,
   find,
   all,
+  ownedBy,
+  pending,
+  approve,
+  reject,
   favKey,
   genId,
   normalize,

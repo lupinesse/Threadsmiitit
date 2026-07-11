@@ -278,6 +278,9 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
 
   // ── Success view ────────────────────────────────────────────────────────────
   if (saved) {
+    // A fresh submission is always 'pending'; an edit stays 'pending' if it
+    // was resubmitted after a rejection, or keeps its prior approved status.
+    const pendingReview = saved.status === 'pending';
     return (
       <div style={{ padding: '12px 20px 28px' }}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -306,10 +309,18 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
               letterSpacing: t.headSpacing,
             }}
           >
-            {isEdit ? 'Miitti päivitetty! ✅' : 'Miitti lisätty! 🎉'}
+            {isEdit
+              ? pendingReview
+                ? 'Muutokset lähetetty tarkistukseen! 🔍'
+                : 'Miitti päivitetty! ✅'
+              : 'Miitti lähetetty tarkistukseen! 🎉'}
           </h2>
           <p style={{ margin: 0, fontSize: 13.5, color: t.inkSoft, lineHeight: 1.5 }}>
-            {isEdit ? 'Muutokset tallennettu.' : 'Se näkyy nyt kalenterissa ja listassa.'}
+            {isEdit
+              ? pendingReview
+                ? 'Ylläpito tarkistaa muutokset ja julkaisee ne pian.'
+                : 'Muutokset tallennettu.'
+              : 'Ylläpito tarkistaa ja julkaisee sen pian — näet sen jo nyt merkinnällä "odottaa hyväksyntää".'}
           </p>
         </div>
 
