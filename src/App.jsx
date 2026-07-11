@@ -605,13 +605,7 @@ export default function App() {
         )}
 
         {/* ── Chat assistant sheet ───────────────────────────────────── */}
-        <ChatAssistant
-          t={t}
-          open={chatOpen}
-          onClose={() => setChatOpen(false)}
-          refresh={refresh}
-          user={user}
-        />
+        <ChatAssistant t={t} open={chatOpen} onClose={() => setChatOpen(false)} refresh={refresh} />
       </div>
     </div>
   );

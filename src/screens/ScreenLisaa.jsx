@@ -14,6 +14,7 @@ import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { buildAddedBy } from '../lib/addedBy.js';
 import { hexA, cityName, MeetupCard, Pill } from '../components/ui.jsx';
 import {
   IconSpark,
@@ -330,15 +331,8 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       }
       return;
     }
-    const payload = {
-      ...f,
-      addedBy: {
-        id: user.id,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        profileUrl: user.profileUrl,
-      },
-    };
+    const addedBy = buildAddedBy(user);
+    const payload = addedBy ? { ...f, addedBy } : f;
     const ev = EventStore.add(payload);
     setSaved(ev);
     refresh?.();
