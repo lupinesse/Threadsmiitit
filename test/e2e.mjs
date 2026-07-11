@@ -60,7 +60,11 @@ describe('End-to-end: browse, open, and favourite a meetup', () => {
       city: 'helsinki',
       cat: 'kulttuuri',
       org: ['@e2e-test'],
+      addedBy: { id: 'e2e', username: 'e2e-test', avatarUrl: '', profileUrl: '' },
     });
+    // Approve so it's visible to the (unauthenticated) test viewer — a fresh
+    // submission is only visible to its own submitter until approved.
+    EventStore.approve(added.id);
 
     render(React.createElement(AuthProvider, null, React.createElement(App)));
 

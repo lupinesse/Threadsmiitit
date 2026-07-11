@@ -99,12 +99,22 @@ function parseJSON(s) {
  * Applies a single action from the assistant's response to EventStore.
  * @param {object} a - Action object with op, and relevant fields.
  * @param {object|null} link - Detected Threads link, or null if none found.
+ * @param {object|null} user - The logged-in Threads user, or null if anonymous.
  * @returns {object|null} Result object with changed, kind, label (and optional event), or null.
  */
-function applyAction(a, link) {
+function applyAction(a, link, user) {
   if (!a || !a.op) return null;
 
   if (a.op === 'add') {
+    // Anonymous submission is not allowed — every meetup must be attributable
+    // to a logged-in Threads user, same rule as the form (ScreenLisaa).
+    if (!user) {
+      return {
+        changed: false,
+        kind: 'error',
+        label: 'Kirjaudu sisään Threadsilla ennen kuin lisäät miitin',
+      };
+    }
     // Backfill url/org from a pasted Threads link if the model omitted them.
     if (link) {
       if (!a.url) a.url = link.url;
@@ -118,7 +128,15 @@ function applyAction(a, link) {
         label: 'Threads-postauslinkki puuttuu — miittiä ei lisätty',
       };
     }
-    const ev = EventStore.add(a);
+    const ev = EventStore.add({
+      ...a,
+      addedBy: {
+        id: user.id,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        profileUrl: user.profileUrl,
+      },
+    });
     return { changed: true, kind: 'add', event: ev, label: `Lisätty #${ev.id}` };
   }
 
@@ -299,7 +317,7 @@ const GREETING =
  *
  * @param {object} props
  */
-export function ChatAssistant({ t, open, onClose, refresh }) {
+export function ChatAssistant({ t, open, onClose, refresh, user }) {
   const ct = t.card;
   const [msgs, setMsgs] = useState([{ role: 'assistant', text: GREETING }]);
   const [input, setInput] = useState('');
@@ -339,7 +357,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
 
       if (parsed && Array.isArray(parsed.actions)) {
         for (const a of parsed.actions) {
-          results.push(applyAction(a, link));
+          results.push(applyAction(a, link, user));
         }
       }
 

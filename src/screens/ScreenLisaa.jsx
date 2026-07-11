@@ -13,6 +13,7 @@ import { useState, useId } from 'react';
 import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import { hexA, cityName, MeetupCard, Pill } from '../components/ui.jsx';
 import {
   IconSpark,
@@ -21,6 +22,7 @@ import {
   IconChevron,
   IconPin,
   IconSearch,
+  IconThreads,
 } from '../components/icons.jsx';
 
 const STEPS = ['Perustiedot', 'Laji & paikka', 'Linkki', 'Valmis'];
@@ -212,7 +214,69 @@ function CityAutocomplete({ t, value, onChange }) {
  * @param {Function} [props.onCancel] - Called when the user cancels without saving (edit mode).
  */
 export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, onCancel }) {
+  const { login } = useAuth();
   const isEdit = !!editTarget;
+
+  // Anonymous submission is not allowed — every meetup must be attributable
+  // to a logged-in Threads user. Editing an existing meetup keeps working
+  // for whoever already holds its ID, unrelated to this gate.
+  if (!isEdit && !user) {
+    return (
+      <div style={{ padding: '32px 20px 28px', textAlign: 'center' }}>
+        <div
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 999,
+            background: hexA(t.brand, 0.12),
+            color: t.brand,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 14,
+          }}
+        >
+          <IconThreads size={28} />
+        </div>
+        <h2
+          style={{
+            margin: '0 0 6px',
+            fontFamily: t.fontHead,
+            fontWeight: t.headWeight,
+            fontSize: 21,
+            color: t.ink,
+            letterSpacing: t.headSpacing,
+          }}
+        >
+          Kirjaudu sisään lisätäksesi miitin
+        </h2>
+        <p style={{ margin: '0 0 20px', fontSize: 13.5, color: t.inkSoft, lineHeight: 1.5 }}>
+          Jotta miittejä voi jäljittää järjestäjäänsä, jokaisen lisääjän täytyy olla kirjautunut
+          Threads-tunnuksellaan.
+        </p>
+        <button
+          onClick={login}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            boxSizing: 'border-box',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '13px 22px',
+            borderRadius: t.radiusPill,
+            background: t.brand,
+            color: t.brandInk,
+            fontWeight: 700,
+            fontSize: 14.5,
+            fontFamily: 'inherit',
+          }}
+        >
+          <IconThreads size={17} sw={1.5} /> Kirjaudu Threadsilla
+        </button>
+      </div>
+    );
+  }
 
   // Determine whether editTarget's city is a built-in (non-custom) entry so we
   // can decide whether to show pills (built-in) or the autocomplete (custom).
@@ -260,17 +324,15 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       }
       return;
     }
-    const payload = user
-      ? {
-          ...f,
-          addedBy: {
-            id: user.id,
-            username: user.username,
-            avatarUrl: user.avatarUrl,
-            profileUrl: user.profileUrl,
-          },
-        }
-      : f;
+    const payload = {
+      ...f,
+      addedBy: {
+        id: user.id,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        profileUrl: user.profileUrl,
+      },
+    };
     const ev = EventStore.add(payload);
     setSaved(ev);
     refresh?.();
