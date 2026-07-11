@@ -589,6 +589,34 @@ describe('EventStore canonicalKunta', () => {
   });
 });
 
+// ── buildAddedBy ─────────────────────────────────────────────────────────────
+// Shared between ScreenLisaa's manual submit() and chatActions' applyAction()
+// so the addedBy shape can't drift between the two "add a meetup" entry points.
+
+const { buildAddedBy } = await import('../src/lib/addedBy.js');
+
+describe('buildAddedBy', () => {
+  it('returns undefined when no user is signed in', () => {
+    assert.strictEqual(buildAddedBy(null), undefined);
+  });
+
+  it('picks id, username, avatarUrl, profileUrl from the user', () => {
+    const user = {
+      id: 'u1',
+      username: 'kirjoittaja',
+      avatarUrl: 'https://example.com/av.jpg',
+      profileUrl: 'https://www.threads.com/@kirjoittaja',
+      extraField: 'should not leak through',
+    };
+    assert.deepStrictEqual(buildAddedBy(user), {
+      id: 'u1',
+      username: 'kirjoittaja',
+      avatarUrl: 'https://example.com/av.jpg',
+      profileUrl: 'https://www.threads.com/@kirjoittaja',
+    });
+  });
+});
+
 // ── ChatAssistant.applyAction ────────────────────────────────────────────────
 // Regression: chat-added meetups must be attributed with addedBy, the same
 // way ScreenLisaa's manual submit() does, so they stay visible to their

@@ -5,6 +5,7 @@
  */
 
 import EventStore from '../store/EventStore.js';
+import { buildAddedBy } from './addedBy.js';
 
 /**
  * Extracts a Threads post URL and organizer handle from free text.
@@ -66,17 +67,8 @@ export function applyAction(a, link, user) {
         label: 'Threads-postauslinkki puuttuu — miittiä ei lisätty',
       };
     }
-    const payload = user
-      ? {
-          ...a,
-          addedBy: {
-            id: user.id,
-            username: user.username,
-            avatarUrl: user.avatarUrl,
-            profileUrl: user.profileUrl,
-          },
-        }
-      : a;
+    const addedBy = buildAddedBy(user);
+    const payload = addedBy ? { ...a, addedBy } : a;
     const ev = EventStore.add(payload);
     return { changed: true, kind: 'add', event: ev, label: `Lisätty #${ev.id}` };
   }
