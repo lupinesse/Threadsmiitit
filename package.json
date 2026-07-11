@@ -12,10 +12,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test test/unit.mjs \".github/scripts/test/**/*.test.mjs\"",
-    "lint": "eslint \"src/**/*.{js,jsx}\" \"*.js\" \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" && stylelint \"src/css/**/*.scss\"",
+    "lint": "eslint \"src/**/*.{js,jsx}\" \"*.js\" \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.js\" && stylelint \"src/css/**/*.scss\"",
     "lint:css": "stylelint \"src/css/**/*.scss\"",
-    "format": "prettier --write \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\"",
-    "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\"",
+    "format": "prettier --write \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.js\"",
     "prepare": "husky",
     "docs": "jsdoc -c jsdoc.config.json",
     "clean-branches": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-branches.ps1"
@@ -38,6 +38,10 @@
       "prettier --write"
     ],
     ".github/scripts/**/*.mjs": [
+      "eslint",
+      "prettier --write"
+    ],
+    "netlify/functions/**/*.js": [
       "eslint",
       "prettier --write"
     ]
