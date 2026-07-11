@@ -207,6 +207,9 @@ describe('isDrag', () => {
 
 const EventStore = (await import('../src/store/EventStore.js')).default;
 
+/** Shared `addedBy` fixture for tests that don't care who submitted the event. */
+const TEST_USER = { id: 't1', username: 'testaaja', avatarUrl: '', profileUrl: '' };
+
 describe('EventStore.normalize', () => {
   it('normalises a DD.MM.YYYY date to YYYY-MM-DD', () => {
     const result = EventStore.normalize({
@@ -315,6 +318,7 @@ describe('EventStore add / find / remove', () => {
       cat: 'yleinen',
       org: '@test',
       url: 'https://www.threads.com/test',
+      addedBy: TEST_USER,
     });
     assert.strictEqual(ev.id.length, 4);
   });
@@ -327,6 +331,7 @@ describe('EventStore add / find / remove', () => {
       cat: 'yleinen',
       org: '@test',
       url: 'https://www.threads.com/findme',
+      addedBy: TEST_USER,
     });
     const found = EventStore.find(ev.id);
     assert.ok(found, 'event should be found');
@@ -341,9 +346,41 @@ describe('EventStore add / find / remove', () => {
       cat: 'yleinen',
       org: '@test',
       url: 'https://www.threads.com/rm',
+      addedBy: TEST_USER,
     });
     assert.strictEqual(EventStore.remove(ev.id), true);
     assert.strictEqual(EventStore.find(ev.id), null);
+  });
+
+  it('rejects an anonymous submission with no addedBy', () => {
+    assert.throws(
+      () =>
+        EventStore.add({
+          title: 'Anonyymi',
+          date: '2026-08-04',
+          city: 'helsinki',
+          cat: 'yleinen',
+          org: '@test',
+          url: 'https://www.threads.com/anon',
+        }),
+      /anonymous submission/
+    );
+  });
+
+  it('rejects a submission whose addedBy has no username', () => {
+    assert.throws(
+      () =>
+        EventStore.add({
+          title: 'Puolittainen',
+          date: '2026-08-05',
+          city: 'helsinki',
+          cat: 'yleinen',
+          org: '@test',
+          url: 'https://www.threads.com/half',
+          addedBy: { id: 'x', avatarUrl: '', profileUrl: '' },
+        }),
+      /anonymous submission/
+    );
   });
 
   it('remove returns false for unknown id', () => {
@@ -537,6 +574,7 @@ describe('EventStore.edit', () => {
       cat: 'yleinen',
       org: '@org',
       url: 'https://www.threads.com/edit-test',
+      addedBy: TEST_USER,
     });
     const updated = EventStore.edit(ev.id, { title: 'Päivitetty' });
     assert.ok(updated, 'should return the updated event');
@@ -551,6 +589,7 @@ describe('EventStore.edit', () => {
       cat: 'yleinen',
       org: '@a',
       url: 'https://www.threads.com/id-testi',
+      addedBy: TEST_USER,
     });
     const updated = EventStore.edit(ev.id, { title: 'IdTesti Muokattu' });
     assert.strictEqual(updated?.id, ev.id);
@@ -568,6 +607,7 @@ describe('EventStore.edit', () => {
       cat: 'karaoke',
       org: '@x',
       url: 'https://www.threads.com/sailytesti',
+      addedBy: TEST_USER,
     });
     const updated = EventStore.edit(ev.id, { title: 'SäilyTesti Uusi' });
     assert.strictEqual(updated?.city, 'tampere');
@@ -584,6 +624,7 @@ describe('EventStore moderation — add / edit status', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/mod-add',
+      addedBy: TEST_USER,
     });
     assert.strictEqual(ev.status, 'pending');
     assert.strictEqual(typeof ev.submitted, 'number');
@@ -597,6 +638,7 @@ describe('EventStore moderation — add / edit status', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/mod-edit-pending',
+      addedBy: TEST_USER,
     });
     const updated = EventStore.edit(ev.id, { title: 'Muokattu' });
     assert.strictEqual(updated.status, 'pending');
@@ -610,6 +652,7 @@ describe('EventStore moderation — add / edit status', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/mod-edit-approved',
+      addedBy: TEST_USER,
     });
     EventStore.approve(ev.id);
     const updated = EventStore.edit(ev.id, { title: 'Hyväksytty muokattu' });
@@ -624,6 +667,7 @@ describe('EventStore moderation — add / edit status', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/mod-edit-rejected',
+      addedBy: TEST_USER,
     });
     EventStore.reject(ev.id, 'Ei sovi');
     const updated = EventStore.edit(ev.id, { title: 'Hylätty uudelleen' });
@@ -639,6 +683,7 @@ describe('EventStore moderation — add / edit status', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/mod-timestamp',
+      addedBy: TEST_USER,
     });
     const updated = EventStore.edit(ev.id, { title: 'Aikaleimatesti Uusi' });
     assert.strictEqual(updated.submitted, ev.submitted);
@@ -654,6 +699,7 @@ describe('EventStore.approve / reject / pending', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/approve-me',
+      addedBy: TEST_USER,
     });
     const approved = EventStore.approve(ev.id);
     assert.strictEqual(approved.status, 'approved');
@@ -668,6 +714,7 @@ describe('EventStore.approve / reject / pending', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/reject-me',
+      addedBy: TEST_USER,
     });
     const rejected = EventStore.reject(ev.id, 'Ei täytä ehtoja');
     assert.strictEqual(rejected.status, 'rejected');
@@ -688,6 +735,7 @@ describe('EventStore.approve / reject / pending', () => {
       cat: 'yleinen',
       org: '@a',
       url: 'https://www.threads.com/first',
+      addedBy: TEST_USER,
     });
     const second = EventStore.add({
       title: 'Toinen',
@@ -696,6 +744,7 @@ describe('EventStore.approve / reject / pending', () => {
       cat: 'yleinen',
       org: '@b',
       url: 'https://www.threads.com/second',
+      addedBy: TEST_USER,
     });
     const approved = EventStore.add({
       title: 'Kolmas — hyväksytty',
@@ -704,6 +753,7 @@ describe('EventStore.approve / reject / pending', () => {
       cat: 'yleinen',
       org: '@c',
       url: 'https://www.threads.com/third',
+      addedBy: TEST_USER,
     });
     EventStore.approve(approved.id);
 
@@ -769,6 +819,7 @@ describe('EventStore.all — moderation visibility', () => {
       cat: 'yleinen',
       org: '@x',
       url: 'https://www.threads.com/visible-all',
+      addedBy: TEST_USER,
     });
     EventStore.approve(ev.id);
     const list = EventStore.all('joku-muu');
@@ -906,7 +957,7 @@ describe('ChatAssistant.applyAction — add', () => {
     assert.deepStrictEqual(result.event.addedBy, USER);
   });
 
-  it('omits addedBy when no user is logged in', () => {
+  it('rejects add with no user logged in — anonymous submission is not allowed', () => {
     const result = applyAction(
       {
         op: 'add',
@@ -920,8 +971,8 @@ describe('ChatAssistant.applyAction — add', () => {
       null,
       null
     );
-    assert.strictEqual(result.changed, true);
-    assert.strictEqual(Object.prototype.hasOwnProperty.call(result.event, 'addedBy'), false);
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.kind, 'error');
   });
 
   it('a chat-added event is then found under the creator via addedBy.username', () => {

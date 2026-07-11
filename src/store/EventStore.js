@@ -267,10 +267,19 @@ function normalize(p) {
 /**
  * Adds a new user event and persists it. New submissions start as `pending`
  * — an admin must approve them before they appear in the public feed.
+ *
+ * Anonymous submissions are rejected: `partial.addedBy` must identify a
+ * logged-in Threads user. Callers (the form, the chat assistant) must check
+ * for a logged-in user themselves so they can show a friendly prompt instead
+ * of hitting this error.
  * @param {object} partial - Partial event fields (will be normalised).
  * @returns {object} The saved event with an assigned `id`.
+ * @throws {Error} If `partial.addedBy.username` is missing.
  */
 function add(partial) {
+  if (!partial?.addedBy?.username) {
+    throw new Error('EventStore.add: refusing anonymous submission — addedBy.username is required');
+  }
   const arr = load();
   const ids = new Set(arr.map((e) => e.id).concat(MEETUPS.map((m) => m.id).filter(Boolean)));
   const ev = {

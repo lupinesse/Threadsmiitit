@@ -54,6 +54,18 @@ export function applyAction(a, link, user) {
   if (!a || !a.op) return null;
 
   if (a.op === 'add') {
+    // Anonymous submission is not allowed — every meetup must be attributable
+    // to a logged-in Threads user, same rule as the manual form (ScreenLisaa).
+    // Checked explicitly (rather than letting EventStore.add's own guard
+    // throw) so the assistant can reply with a helpful message instead of
+    // the generic "connection lost" error shown for unexpected exceptions.
+    if (!user) {
+      return {
+        changed: false,
+        kind: 'error',
+        label: 'Kirjaudu sisään Threadsilla ennen kuin lisäät miitin',
+      };
+    }
     // Backfill url/org from a pasted Threads link if the model omitted them.
     if (link) {
       if (!a.url) a.url = link.url;
@@ -67,9 +79,7 @@ export function applyAction(a, link, user) {
         label: 'Threads-postauslinkki puuttuu — miittiä ei lisätty',
       };
     }
-    const addedBy = buildAddedBy(user);
-    const payload = addedBy ? { ...a, addedBy } : a;
-    const ev = EventStore.add(payload);
+    const ev = EventStore.add({ ...a, addedBy: buildAddedBy(user) });
     return { changed: true, kind: 'add', event: ev, label: `Lisätty #${ev.id}` };
   }
 
