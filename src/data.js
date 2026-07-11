@@ -59,6 +59,7 @@ export const CITIES = [
     short: 'Helsinki',
     note: 'Espoo, Kauniainen ja Vantaa mukana. Kirkkonummi, Vihti, Nurmijärvi, Hyvinkää, Tuusula, Kerava ja Järvenpää omina kaupunkeinaan.',
   },
+  { key: 'forssa', name: 'Forssa', short: 'Forssa' },
   { key: 'hyvinkaa', name: 'Hyvinkää', short: 'Hyvinkää' },
   { key: 'hameenlinna', name: 'Hämeenlinna', short: 'Hämeenlinna' },
   { key: 'jyvaskyla', name: 'Jyväskylä', short: 'Jyväskylä', account: '@miitit_jyvaskyla' },
@@ -76,6 +77,7 @@ export const CITIES = [
   { key: 'pori', name: 'Pori', short: 'Pori', account: '@miititpori26' },
   { key: 'porvoo', name: 'Porvoo', short: 'Porvoo' },
   { key: 'riihimaki', name: 'Riihimäki', short: 'Riihimäki' },
+  { key: 'sipoo', name: 'Sipoo', short: 'Sipoo' },
   { key: 'tampere', name: 'Tampere', short: 'Tampere', account: '@tamperesinkut' },
   { key: 'turku', name: 'Turku', short: 'Turku' },
 ];
@@ -255,10 +257,10 @@ export const MEETUPS = [
   {
     date: '2026-07-25',
     city: 'hameenlinna',
-    title: 'Hämeenlinna_miitti 2.0',
+    title: 'Hämpton-terassimiitti',
     cat: 'yleinen',
     org: ['@_asiallinen_nimi_'],
-    url: 'https://www.threads.com/@_asiallinen_nimi_/post/DUxWRKNgLdJ',
+    url: 'https://www.threads.com/@_asiallinen_nimi_/post/DZzT7ANDLLd',
   },
   // KUOPIO
   {
@@ -378,7 +380,7 @@ export const MEETUPS = [
     title: 'Nupit kaakkoon',
     cat: 'yleinen',
     org: ['@itsmedzii'],
-    url: '',
+    url: 'https://www.threads.com/@itsmedzii/post/DXTrQstCDIP',
   },
   {
     date: '2026-07-28',
@@ -386,7 +388,7 @@ export const MEETUPS = [
     title: 'Kesäretki Seiliin',
     cat: 'yleinen',
     org: ['@ilonapai', '@lupinesse'],
-    url: '',
+    url: 'https://www.threads.com/@lupinesse/post/DYb8FP4CD3C',
   },
   // HELSINKI & PK-SEUTU — kesä–elokuu 2026
   {
@@ -468,7 +470,7 @@ export const MEETUPS = [
     title: 'Elokuvamiitti: The Odyssey',
     cat: 'kulttuuri',
     org: ['@heta.kamarainen'],
-    url: '',
+    url: 'https://www.threads.com/@heta.kamarainen/post/DZnaAj3F0SY',
   },
   {
     date: '2026-07-17',
@@ -476,7 +478,7 @@ export const MEETUPS = [
     title: 'Bileristeilymiitti',
     cat: 'illanvietto',
     org: ['@marja_hattara', '@roosa_ihalainen', '@marjuttimou'],
-    url: '',
+    url: 'https://www.threads.com/@marja_hattara/post/DZZo12piB-N',
   },
   {
     date: '2026-07-22',
@@ -484,7 +486,7 @@ export const MEETUPS = [
     title: 'Photowalk',
     cat: 'liikunta',
     org: ['@punapipomies', '@anttisieppi'],
-    url: '',
+    url: 'https://www.threads.com/@punapipomies/post/DY1edpnDJ_m',
   },
   {
     date: '2026-07-26',
@@ -492,7 +494,7 @@ export const MEETUPS = [
     title: 'Tanssimiitti',
     cat: 'liikunta',
     org: ['@marjuttimou', '@tamsilaine'],
-    url: '',
+    url: 'https://www.threads.com/@marjuttimou/post/DZR9V59jfYw',
   },
   {
     date: '2026-08-29',
@@ -501,7 +503,7 @@ export const MEETUPS = [
     cat: 'kulttuuri',
     org: ['@heta.kamarainen'],
     area: 'Espoo',
-    url: '',
+    url: 'https://www.threads.com/@heta.kamarainen/post/DYARH7plxn-',
   },
   // HYVINKÄÄ
   {
@@ -510,7 +512,7 @@ export const MEETUPS = [
     title: 'Velapiknik',
     cat: 'ruokajuoma',
     org: ['@iippakoo'],
-    url: '',
+    url: 'https://www.threads.com/@iippakoo/post/DZjirh3CC3V',
   },
   // KOUVOLA
   {
@@ -553,7 +555,7 @@ export const MEETUPS = [
     title: 'Lappuhaalarimiitti',
     cat: 'illanvietto',
     org: ['@jessicakuu', '@ereponen'],
-    url: '',
+    url: 'https://www.threads.com/@jessicakuu/post/DZ2g70RDWTW',
   },
   // PORI
   {
@@ -562,7 +564,7 @@ export const MEETUPS = [
     title: 'Sammakkoleivosmiitti',
     cat: 'ruokajuoma',
     org: ['@riikkahelenap'],
-    url: '',
+    url: 'https://www.threads.com/@riikkahelenap/post/DZXJhpqDX12',
   },
   // PORVOO
   {
@@ -605,7 +607,7 @@ export const MEETUPS = [
     title: 'Kaljakerhon pussikaljamiitti',
     cat: 'ruokajuoma',
     org: ['@viininrakastaja'],
-    url: '',
+    url: 'https://www.threads.com/@viininrakastaja/post/DZSFQjKDqKE',
   },
   {
     date: '2026-07-18',
@@ -613,7 +615,167 @@ export const MEETUPS = [
     title: 'Piknikmiitti Koskipuistossa',
     cat: 'yleinen',
     org: ['@karpitar', '@lupinesse'],
-    url: '',
+    url: 'https://www.threads.com/@lupinesse/post/DZeXAhciOdT',
+  },
+  // ── Verkkosivusynkkaus (sites.google.com/view/threadsmiitit) ──────────────
+  // FORSSA
+  {
+    date: '2026-08-22',
+    city: 'forssa',
+    title: 'Mykkäelokuvafestarimiitti',
+    cat: 'kulttuuri',
+    org: ['@heta.kamarainen'],
+    url: 'https://www.threads.com/@heta.kamarainen/post/DZzUcqjlwBs',
+  },
+  // HELSINKI & PK-SEUTU
+  {
+    date: '2026-07-11',
+    city: 'helsinki',
+    title: 'Suomenlinnan juusto- ja viinipiknik',
+    cat: 'ruokajuoma',
+    org: ['@piaiiia'],
+    url: 'https://www.threads.com/@piaiiia/post/DaVbePAiG7p',
+  },
+  {
+    date: '2026-07-17',
+    city: 'helsinki',
+    title: 'Suokkimiitti',
+    cat: 'sauna',
+    org: ['@anneelisabetbelt_'],
+    url: 'https://www.threads.com/@anneelisabetbelt_/post/DaNF-C2DMEe',
+  },
+  {
+    date: '2026-07-25',
+    city: 'helsinki',
+    title: 'Cacio e pepe -peijaiset',
+    cat: 'ruokajuoma',
+    org: ['@kasmirvirallinen'],
+    area: 'Espoo',
+    url: 'https://www.threads.com/@kasmirvirallinen/post/DadEM9JDKGE',
+  },
+  {
+    date: '2026-08-29',
+    city: 'helsinki',
+    title: 'Threads Helsinki-seikkailu',
+    cat: 'yleinen',
+    org: ['@tsfgm'],
+    url: 'https://www.threads.com/@tsfgm/post/DZ9ZX4NDYkc',
+  },
+  {
+    date: '2026-08-29',
+    city: 'helsinki',
+    title: 'Juustomiitti',
+    cat: 'ruokajuoma',
+    org: ['@piaiiia'],
+    url: 'https://www.threads.com/@piaiiia/post/DaW9NesiONc',
+  },
+  {
+    date: '2026-09-25',
+    city: 'helsinki',
+    title: 'Livelove-risteily',
+    cat: 'illanvietto',
+    org: ['@livelove.fi'],
+    url: 'https://www.threads.com/@livelove.fi/post/DZ4Z8weCECu',
+  },
+  // HÄMEENLINNA
+  {
+    date: '2026-08-08',
+    city: 'hameenlinna',
+    title: 'Fribamiitti',
+    cat: 'liikunta',
+    org: ['@_asiallinen_nimi_'],
+    url: 'https://www.threads.com/@_asiallinen_nimi_/post/DZ19yinjEei',
+  },
+  {
+    date: '2026-08-16',
+    city: 'hameenlinna',
+    title: 'Pihapelimiitti',
+    cat: 'pelit',
+    org: ['@_asiallinen_nimi_'],
+    url: 'https://www.threads.com/@_asiallinen_nimi_/post/DZ17Wv7DFUC',
+  },
+  {
+    date: '2026-08-21',
+    city: 'hameenlinna',
+    title: 'Kuukausimiitti',
+    cat: 'yleinen',
+    org: ['@sannai77'],
+    url: 'https://www.threads.com/@sannai77/post/DaMsU_tiEk1',
+  },
+  {
+    date: '2026-09-18',
+    city: 'hameenlinna',
+    title: 'Kuukausimiitti',
+    cat: 'yleinen',
+    org: ['@sannai77'],
+    url: 'https://www.threads.com/@sannai77/post/DaMsU_tiEk1',
+  },
+  {
+    date: '2026-10-16',
+    city: 'hameenlinna',
+    title: 'Kuukausimiitti',
+    cat: 'yleinen',
+    org: ['@sannai77'],
+    url: 'https://www.threads.com/@sannai77/post/DaMsU_tiEk1',
+  },
+  {
+    date: '2026-11-20',
+    city: 'hameenlinna',
+    title: 'Kuukausimiitti',
+    cat: 'yleinen',
+    org: ['@sannai77'],
+    url: 'https://www.threads.com/@sannai77/post/DaMsU_tiEk1',
+  },
+  {
+    date: '2026-12-18',
+    city: 'hameenlinna',
+    title: 'Kuukausimiitti',
+    cat: 'yleinen',
+    org: ['@sannai77'],
+    url: 'https://www.threads.com/@sannai77/post/DaMsU_tiEk1',
+  },
+  // LAHTI
+  {
+    date: '2026-07-14',
+    city: 'lahti',
+    title: 'Teerenpeli-miitti',
+    cat: 'ruokajuoma',
+    org: ['@marjuttimou', '@harhailija_m'],
+    url: 'https://www.threads.com/@marjuttimou/post/DaM_TL6iDWT',
+  },
+  // SIPOO
+  {
+    date: '2026-07-26',
+    city: 'sipoo',
+    title: 'Sinkkujen luontomiitti',
+    cat: 'sinkut',
+    org: ['@hellunpulla'],
+    url: 'https://www.threads.com/@hellunpulla/post/DalRs_JDV1e',
+  },
+  // TAMPERE
+  {
+    date: '2026-07-16',
+    city: 'tampere',
+    title: 'Karaokemiitti',
+    cat: 'karaoke',
+    org: ['@tempukka'],
+    url: 'https://www.threads.com/@tempukka/post/Dai5k4DAFCW',
+  },
+  {
+    date: '2026-07-18',
+    city: 'tampere',
+    title: 'Soittopiknik',
+    cat: 'kulttuuri',
+    org: ['@latexburning'],
+    url: 'https://www.threads.com/@latexburning/post/DZ8KTnUF3sh',
+  },
+  {
+    date: '2026-07-22',
+    city: 'tampere',
+    title: 'Sinkkumiitti',
+    cat: 'sinkut',
+    org: ['@tillitin'],
+    url: 'https://www.threads.com/@tillitin/post/DacNuaYDFCe',
   },
 ];
 
