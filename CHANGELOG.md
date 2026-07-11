@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation logic extracted to `netlify/functions/lib/validate-chat-request.mjs` (unit-tested); dev Vite plugin shares the same prompt validator.
 
 ### Fixed
+- Horizontal rows (city filter pills and the "Tällä viikolla" rail on the Miitit screen) can now be scrolled by click-and-dragging with the mouse. The scrollbar is hidden by design, so mouse users previously had no way to pan these rows. A new `src/hooks/useDragScroll.js` hook adds grab-to-scroll for mouse pointers (touch/pen keep native scrolling) and suppresses the trailing click so a drag never toggles a filter. Pure scroll-math helpers are unit-tested.
 - `npm test` now runs both `test/unit.mjs` and every `.github/scripts/test/**/*.test.mjs` suite (219 tests across 51 suites). Previously only `test/unit.mjs` was executed, so the CI-script regression suites (empty-comment, misroute, verdict parsing) were silently skipped.
 - Restored missing `.github/scripts/jsdoc-check.mjs` and `.github/scripts/impact-check.mjs` whose functions were tested by `ci-scripts.test.mjs` but had been removed.
 - `/api/chat` proxy now propagates upstream API errors (e.g. 429 Rate Limit, 400 Bad Request) to the client with the real HTTP status code and a descriptive message. Previously a non-2xx response from Anthropic produced `200 {text:""}`, causing the UI to silently show an empty reply.
