@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { CITIES, MONTHS_FI, DH } from '../data.js';
+import EventStore from '../store/EventStore.js';
 import { catColor, MeetupCard, Pill } from '../components/ui.jsx';
 import { IconArrowLeft, IconChevron } from '../components/icons.jsx';
 
@@ -264,7 +265,13 @@ export function ScreenKalenteri({ t, onOpen, cityFilter, setCityFilter, events }
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {selMeetups.map((m) => (
-                <MeetupCard key={m.id} m={m} t={t.card} onClick={() => onOpen(m)} fav={false} />
+                <MeetupCard
+                  key={EventStore.favKey(m)}
+                  m={m}
+                  t={t.card}
+                  onClick={() => onOpen(m)}
+                  fav={false}
+                />
               ))}
             </div>
           </div>

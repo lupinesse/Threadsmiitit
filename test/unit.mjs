@@ -409,6 +409,89 @@ describe('EventStore.favKey', () => {
   });
 });
 
+// ── Regression: MeetupCard/list-item React keys ─────────────────────────────
+// Seed meetups (from MEETUPS) have no `id` field, so any list that keyed its
+// items with `m.id` produced `key={undefined}` for every seed meetup, and a
+// duplicate-key warning as soon as more than one seed meetup appeared in the
+// same list. ScreenMiitit's "Tällä viikolla" rail was fixed to key on
+// EventStore.favKey(m) instead; these tests guard the same fix in the other
+// four lists that render seed meetups: SubMenneet (ScreenInfo), SubKaraoke
+// (ScreenInfo), the calendar day-detail list (ScreenKalenteri), and the main
+// grouped meetup list (ScreenMiitit).
+
+describe('regression: list keys for seed-only meetups (no id field)', () => {
+  /** Formats today +/- `offsetDays` as a local YYYY-MM-DD string (avoids timezone drift). */
+  function isoOffsetFromToday(offsetDays) {
+    const d = DH.parse(DH.todayStr());
+    d.setDate(d.getDate() + offsetDays);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
+  }
+
+  const pastDate = isoOffsetFromToday(-30);
+  const futureDate = isoOffsetFromToday(30);
+
+  /** A stand-in for two-or-more MEETUPS entries — no `id`, like real seed data. */
+  const seedFixture = [
+    { title: 'Karaokeklubi', date: pastDate, city: 'helsinki', cat: 'karaoke', url: '' },
+    { title: 'Yleismiitti Tampereella', date: pastDate, city: 'tampere', cat: 'yleinen', url: '' },
+    { title: 'Toinen karaokeklubi', date: futureDate, city: 'oulu', cat: 'karaoke', url: '' },
+    { title: 'Kolmas karaokeklubi', date: futureDate, city: 'turku', cat: 'karaoke', url: '' },
+  ];
+
+  /** Asserts that mapping `EventStore.favKey` over `list` yields unique, defined React keys. */
+  function assertUniqueDefinedKeys(list) {
+    const keys = list.map((m) => EventStore.favKey(m));
+    assert.ok(
+      keys.every((k) => k !== undefined),
+      `expected no undefined keys, got: ${JSON.stringify(keys)}`
+    );
+    assert.strictEqual(
+      new Set(keys).size,
+      keys.length,
+      `expected all keys unique, got: ${JSON.stringify(keys)}`
+    );
+  }
+
+  it('SubMenneet (ScreenInfo) past-events list: same past date, two seed meetups', () => {
+    // Mirrors ScreenInfo's SubMenneet: filter to past dates, sort desc by date.
+    const past = seedFixture
+      .filter((m) => !DH.isUpcoming(m.date))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    assert.strictEqual(past.length, 2, 'fixture should contain two past seed meetups');
+    assertUniqueDefinedKeys(past);
+  });
+
+  it('SubKaraoke (ScreenInfo) list: same future date, two seed karaoke meetups', () => {
+    // Mirrors ScreenInfo's SubKaraoke: filter to karaoke + upcoming, sort asc by date.
+    const upcoming = seedFixture
+      .filter((m) => m.cat === 'karaoke' && DH.isUpcoming(m.date))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    assert.strictEqual(upcoming.length, 2, 'fixture should contain two upcoming karaoke meetups');
+    assertUniqueDefinedKeys(upcoming);
+  });
+
+  it('calendar day-detail list (ScreenKalenteri): two seed meetups on the same day', () => {
+    // Mirrors ScreenKalenteri's byDay grouping: all meetups falling on one calendar day.
+    const selMeetups = seedFixture.filter((m) => m.date === pastDate);
+    assert.strictEqual(selMeetups.length, 2, 'fixture should contain two meetups on the same day');
+    assertUniqueDefinedKeys(selMeetups);
+  });
+
+  it('main grouped meetup list (ScreenMiitit): a date group with two seed meetups', () => {
+    // Mirrors ScreenMiitit's byMonth/byCity grouping: items within a single group.
+    const byMonth = {};
+    seedFixture.forEach((m) => {
+      (byMonth[DH.monthKey(m.date)] ||= []).push(m);
+    });
+    const group = byMonth[DH.monthKey(pastDate)];
+    assert.strictEqual(group.length, 2, 'fixture should contain two meetups in the same group');
+    assertUniqueDefinedKeys(group);
+  });
+});
+
 describe('EventStore.edit', () => {
   it('updates a field and returns the updated event', () => {
     const ev = EventStore.add({
