@@ -10,27 +10,30 @@
  * MeetupDetail, and EventStore together exactly as they run in production.
  *
  * Node's test runner has no JSX transform, so .jsx source files are loaded
- * through Vite's own programmatic SSR module loader (`ssrLoadModule`) using
- * the project's existing vite.config.js — the same transform pipeline the
- * production build uses — rather than adding a separate transpiler
- * dependency just for tests.
+ * through Vite's own programmatic SSR module loader (`ssrLoadModule`), using
+ * only the React plugin rather than the project's full vite.config.js — the
+ * full config's dev-server settings (port, HMR client) would make the
+ * SSR-loaded app try to reach a real server that isn't running here.
  */
 
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
+import react from '@vitejs/plugin-react';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
 // Vite's own server setup relies on Node's real timer API, so it must be
 // created before GlobalRegistrator overrides globals (setTimeout etc.) with
 // their browser-simulated equivalents for the app render below.
 const vite = await createServer({
-  server: { middlewareMode: true },
+  configFile: false,
+  plugins: [react({ jsxRuntime: 'automatic' })],
+  server: { middlewareMode: true, hmr: false },
   appType: 'custom',
   logLevel: 'silent',
 });
 
-GlobalRegistrator.register({ url: 'http://localhost:8001/' });
+GlobalRegistrator.register();
 
 const { render, screen, cleanup, fireEvent } = await import('@testing-library/react');
 const React = await import('react');
@@ -46,7 +49,7 @@ describe('End-to-end: browse, open, and favourite a meetup', () => {
   after(async () => {
     cleanup();
     await vite.close();
-    GlobalRegistrator.unregister();
+    await GlobalRegistrator.unregister();
   });
 
   it('renders a meetup, opens its detail sheet, and favourites it', async () => {
@@ -68,8 +71,7 @@ describe('End-to-end: browse, open, and favourite a meetup', () => {
 
     // Opening it shows the detail sheet with a matching heading.
     fireEvent.click(card);
-    const heading = await screen.findByRole('heading', { name: TEST_TITLE });
-    assert.ok(heading);
+    await screen.findByRole('heading', { name: TEST_TITLE });
 
     // Favouriting toggles the button's accessible pressed state.
     const favButton = screen.getByRole('button', { name: 'Lisää suosikiksi' });

@@ -87,7 +87,7 @@ npm run format
 npm test
 ```
 
-Runs unit tests (Node's built-in test runner, no extra dependencies).
+Runs unit tests and one end-to-end test on Node's built-in test runner. The end-to-end test (`test/e2e.mjs`) renders the app in a simulated DOM ([happy-dom](https://github.com/capricorn86/happy-dom)) via [@testing-library/react](https://testing-library.com/docs/react-testing-library/intro/), loading JSX through Vite's own SSR module loader — no extra build step, but it does pull in a few dev-only dependencies beyond the unit tests.
 
 ## Tech stack
 

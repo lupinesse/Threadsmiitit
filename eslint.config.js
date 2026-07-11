@@ -44,7 +44,7 @@ export default [
   // Netlify Functions — ES modules running in Node 18+ (fetch + Response are
   // built-in globals in the Netlify Functions v2 runtime).
   {
-    files: ['netlify/functions/**/*.js'],
+    files: ['netlify/functions/**/*.{js,mjs}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
