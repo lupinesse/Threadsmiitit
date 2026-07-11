@@ -91,11 +91,7 @@ export const CITIES = [
   { key: 'turku', name: 'Turku', short: 'Turku' },
 ];
 
-/**
- * Admin Threads handles.
- * @type {string[]}
- */
-export const ADMINS = ['@tintsh', '@nipatran', '@lupinesse'];
+export { ADMINS } from '../netlify/functions/lib/admins.mjs';
 
 /**
  * @typedef {object} MeetupRecord
