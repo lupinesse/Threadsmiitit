@@ -426,7 +426,7 @@ export function ScreenMiitit({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {g.items.map((m) => (
                 <MeetupCard
-                  key={m.id}
+                  key={EventStore.favKey(m)}
                   m={m}
                   t={t.card}
                   onClick={() => onOpen(m)}
