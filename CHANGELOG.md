@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/api/chat` now logs the effective config (allowed origin, dev-mode flag, whether the Anthropic key is configured — never the key itself) and the origin-check outcome on each request.
 
 ### Fixed
+- Keyboard users had no visible focus indicator anywhere in the app (WCAG 2.4.7): interactive elements reset their outline via inline `style={{ all: 'unset' }}` / `outline: 'none'` to fully own their visual design. Added a single global `:focus-visible` rule (`src/css/_base.scss`) that wins back the outline — the only `!important` in the codebase, needed because an inline `style` always outranks an external stylesheet. Uses a fixed white+black halo rather than `currentcolor`, since some elements (e.g. the header profile button) set their text colour equal to their own themed background, which made a `currentcolor` ring invisible; excludes `[tabindex="-1"]` focus-sink elements (dialog panels), which intentionally suppress their own ring since they're never a real tab stop.
 - `npm run lint`/`format` never actually covered `netlify/functions/**/*.mjs` (only `.js`), despite `eslint.config.js` having a dedicated rule block for the directory; `netlify/functions/lib/*.mjs` had undetected `no-undef` errors as a result.
 - `jsdoc.config.json`'s `includePattern` only matched `.js`, so every `.jsx` React component was silently excluded from generated documentation.
 

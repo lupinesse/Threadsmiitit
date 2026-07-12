@@ -37,18 +37,22 @@ body {
   display: none;
 }
 
-// Keyboard-focus ring for every interactive element. Components style buttons
-// with inline `style={{ all: 'unset', ... }}` (and a few inputs set
-// `outline: 'none'` inline) to fully own their visual design. An inline
-// `style` attribute always outranks an external stylesheet rule regardless of
-// selector specificity, so `!important` is the only way this rule can restore
-// the outline those resets strip — this is the sole `!important` in the
-// codebase, kept narrowly scoped to WCAG 2.4.7 focus visibility.
-// `currentcolor` picks up each element's own text colour, which the theme
-// already chose for contrast against that element's surface.
-:focus-visible {
-  outline: 2px solid currentcolor !important;
+// Keyboard-focus ring for every interactive element. Inline
+// `style={{ all: 'unset' }}` / `outline: 'none'` resets (used throughout for
+// full visual control) always beat an external stylesheet rule regardless of
+// specificity, so `!important` is the only way to win the outline back — the
+// sole `!important` in this codebase. A fixed white+black halo is used
+// instead of `currentcolor` because some elements set their text colour to
+// match their own themed background (e.g. the header profile button uses the
+// dark palette's ink colour on its dark surface), which would otherwise
+// paint an invisible ring; pairing two opposite tones guarantees at least
+// one is visible against any background. `:not([tabindex='-1'])` skips
+// off-tab-order focus-sink elements (e.g. the Sheet dialog panel), which
+// intentionally suppress their own ring since they're never a real tab stop.
+:focus-visible:not([tabindex='-1']) {
+  outline: 2px solid #fff !important;
   outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px #000 !important;
 }
 
 // Typing-indicator animation — used by ChatAssistant.
