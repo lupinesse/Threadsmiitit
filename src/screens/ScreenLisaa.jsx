@@ -14,7 +14,7 @@ import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { buildAddedBy } from '../lib/addedBy.js';
+import { THREADS_URL_RE as URL_RE } from '../../shared/eventFields.mjs';
 import { hexA, cityName, MeetupCard, Pill } from '../components/ui.jsx';
 import {
   IconSpark,
@@ -27,7 +27,6 @@ import {
 } from '../components/icons.jsx';
 
 const STEPS = ['Perustiedot', 'Laji & paikka', 'Linkki', 'Valmis'];
-const URL_RE = /^https?:\/\/(www\.)?threads\.(com|net)\//i;
 
 /**
  * Field wrapper with a label and optional hint.
@@ -246,6 +245,8 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
   });
   const [saved, setSaved] = useState(null);
   const [customCity, setCustomCity] = useState(isEdit && !editCityIsBuiltIn);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
@@ -322,19 +323,19 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
           ? f.org.trim() && urlOk
           : true;
 
-  function submit() {
-    if (isEdit) {
-      const ev = EventStore.edit(editTarget.id, f);
-      if (ev) {
-        setSaved(ev);
-        refresh?.();
-      }
+  async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    // The server derives the submission's owner from the session cookie —
+    // addedBy is never sent by the client.
+    const result = isEdit ? await EventStore.edit(editTarget.id, f) : await EventStore.add(f);
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(result.error);
       return;
     }
-    const addedBy = buildAddedBy(user);
-    const payload = addedBy ? { ...f, addedBy } : f;
-    const ev = EventStore.add(payload);
-    setSaved(ev);
+    setSaved(result.event);
     refresh?.();
   }
 
@@ -777,6 +778,25 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
         </div>
       )}
 
+      {/* Submit error banner */}
+      {submitError && (
+        <div
+          role="alert"
+          style={{
+            marginTop: 20,
+            padding: '11px 14px',
+            borderRadius: t.radiusSm,
+            background: hexA('#C2483F', 0.1),
+            border: `1px solid ${hexA('#C2483F', 0.28)}`,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#C2483F',
+          }}
+        >
+          {submitError}
+        </div>
+      )}
+
       {/* Navigation */}
       <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
         {step > 0 ? (
@@ -817,24 +837,30 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
           </button>
         ) : null}
         <button
-          disabled={!canNext}
+          disabled={!canNext || submitting}
           onClick={() => (step < 3 ? setStep(step + 1) : submit())}
           style={{
             all: 'unset',
-            cursor: canNext ? 'pointer' : 'not-allowed',
+            cursor: canNext && !submitting ? 'pointer' : 'not-allowed',
             boxSizing: 'border-box',
             flex: 1,
             textAlign: 'center',
             padding: '14px 20px',
             borderRadius: t.radiusPill,
-            background: canNext ? t.brand : t.line,
-            color: canNext ? t.brandInk : t.inkSoft,
+            background: canNext && !submitting ? t.brand : t.line,
+            color: canNext && !submitting ? t.brandInk : t.inkSoft,
             fontWeight: 700,
             fontSize: 15,
             fontFamily: 'inherit',
           }}
         >
-          {step < 3 ? 'Jatka' : isEdit ? 'Tallenna muutokset' : 'Lähetä miitti'}
+          {step < 3
+            ? 'Jatka'
+            : submitting
+              ? 'Lähetetään…'
+              : isEdit
+                ? 'Tallenna muutokset'
+                : 'Lähetä miitti'}
         </button>
       </div>
     </div>

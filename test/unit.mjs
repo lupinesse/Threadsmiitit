@@ -207,9 +207,6 @@ describe('isDrag', () => {
 
 const EventStore = (await import('../src/store/EventStore.js')).default;
 
-/** Shared `addedBy` fixture for tests that don't care who submitted the event. */
-const TEST_USER = { id: 't1', username: 'testaaja', avatarUrl: '', profileUrl: '' };
-
 describe('EventStore.normalize', () => {
   it('normalises a DD.MM.YYYY date to YYYY-MM-DD', () => {
     const result = EventStore.normalize({
@@ -309,115 +306,178 @@ describe('EventStore.normalize', () => {
   });
 });
 
-describe('EventStore add / find / remove', () => {
-  it('generates a 4-char id on add', () => {
-    const ev = EventStore.add({
-      title: 'Test miitti',
-      date: '2026-08-01',
-      city: 'helsinki',
+// ── EventStore's server-backed async methods ────────────────────────────────
+// EventStore.js is now a thin fetch client — the actual store/visibility
+// logic these tests used to exercise directly now lives server-side and is
+// covered by test/events-store.unit.mjs and test/events-functions.unit.mjs.
+// These tests only need to confirm EventStore calls the right endpoint with
+// the right method/body, and translates fetch responses into the
+// {ok, ...}/{ok:false, error} shape correctly — using mocked fetch, the same
+// pattern already used for callAnthropic below. Anonymous submission is
+// rejected server-side (401 from requireUser) rather than by a client-side
+// throw, so there's no client-side "anonymous submission" test here anymore
+// — see test/events-functions.unit.mjs's 401 cases for that guard.
+
+/**
+ * Mocks globalThis.fetch to return a canned JSON response for this test only
+ * (Node's test runner auto-restores the mock after the test completes) and
+ * captures the request it was called with.
+ * @param {import('node:test').TestContext} t
+ * @param {object} body
+ * @param {number} [status=200]
+ * @returns {{calls: Array<{url:string, opts:object}>}}
+ */
+function mockFetchOnce(t, body, status = 200) {
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, opts) => {
+    calls.push({ url, opts });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    };
+  });
+  return calls;
+}
+
+describe('EventStore.add', () => {
+  it('POSTs the normalised payload to /api/events', async (t) => {
+    const event = { id: 'ab12', status: 'pending' };
+    const calls = mockFetchOnce(t, { event }, 201);
+    const result = await EventStore.add({
+      title: 'Uusi miitti',
+      date: '05.06.2026',
+      city: 'Helsinki',
       cat: 'yleinen',
-      org: '@test',
-      url: 'https://www.threads.com/test',
-      addedBy: TEST_USER,
+      org: '@x',
+      url: 'https://www.threads.com/mod-add',
     });
-    assert.strictEqual(ev.id.length, 4);
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.event, event);
+    assert.strictEqual(calls[0].url, '/api/events');
+    assert.strictEqual(calls[0].opts.method, 'POST');
+    const sentBody = JSON.parse(calls[0].opts.body);
+    assert.strictEqual(sentBody.date, '2026-06-05'); // normalised before send
+    assert.strictEqual(sentBody.city, 'helsinki');
   });
 
-  it('find returns the event by id', () => {
-    const ev = EventStore.add({
-      title: 'FindMe',
-      date: '2026-08-02',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@test',
-      url: 'https://www.threads.com/findme',
-      addedBy: TEST_USER,
+  it('surfaces a server-provided error message on failure', async (t) => {
+    mockFetchOnce(t, { error: 'title is required' }, 400);
+    const result = await EventStore.add({ title: '', date: '2026-06-01', city: 'helsinki' });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.error, 'title is required');
+  });
+
+  it('returns a generic error on a network failure', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('offline');
     });
-    const found = EventStore.find(ev.id);
-    assert.ok(found, 'event should be found');
-    assert.strictEqual(found.title, 'FindMe');
+    const result = await EventStore.add({ title: 'x', date: '2026-06-01', city: 'helsinki' });
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /Verkkovirhe/);
   });
 
-  it('remove deletes the event', () => {
-    const ev = EventStore.add({
-      title: 'RemoveMe',
-      date: '2026-08-03',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@test',
-      url: 'https://www.threads.com/rm',
-      addedBy: TEST_USER,
-    });
-    assert.strictEqual(EventStore.remove(ev.id), true);
-    assert.strictEqual(EventStore.find(ev.id), null);
-  });
-
-  it('rejects an anonymous submission with no addedBy', () => {
-    assert.throws(
-      () =>
-        EventStore.add({
-          title: 'Anonyymi',
-          date: '2026-08-04',
-          city: 'helsinki',
-          cat: 'yleinen',
-          org: '@test',
-          url: 'https://www.threads.com/anon',
-        }),
-      /anonymous submission/
-    );
-  });
-
-  it('rejects a submission whose addedBy has no username', () => {
-    assert.throws(
-      () =>
-        EventStore.add({
-          title: 'Puolittainen',
-          date: '2026-08-05',
-          city: 'helsinki',
-          cat: 'yleinen',
-          org: '@test',
-          url: 'https://www.threads.com/half',
-          addedBy: { id: 'x', avatarUrl: '', profileUrl: '' },
-        }),
-      /anonymous submission/
-    );
-  });
-
-  it('remove returns false for unknown id', () => {
-    assert.strictEqual(EventStore.remove('zzzz'), false);
+  it('returns ok:false for an unauthenticated caller', async (t) => {
+    mockFetchOnce(t, { error: 'Unauthorized' }, 401);
+    const result = await EventStore.add({ title: 'x', date: '2026-06-01', city: 'helsinki' });
+    assert.strictEqual(result.ok, false);
   });
 });
 
-describe('EventStore.normalize addedBy', () => {
-  it('passes through addedBy when present', () => {
-    const addedBy = {
-      id: '123',
-      username: 'testuser',
-      avatarUrl: 'https://example.com/av.jpg',
-      profileUrl: 'https://www.threads.com/@testuser',
-    };
-    const result = EventStore.normalize({
-      title: 'T',
-      date: '2026-06-01',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: '',
-      addedBy,
-    });
-    assert.deepStrictEqual(result.addedBy, addedBy);
+describe('EventStore.edit', () => {
+  it('PATCHes /api/events with the id as a query param', async (t) => {
+    const calls = mockFetchOnce(t, { event: { id: 'ab12', title: 'Päivitetty' } });
+    const result = await EventStore.edit('ab12', { title: 'Päivitetty' });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls[0].url, '/api/events?id=ab12');
+    assert.strictEqual(calls[0].opts.method, 'PATCH');
   });
 
-  it('omits addedBy when not supplied', () => {
-    const result = EventStore.normalize({
-      title: 'T',
-      date: '2026-06-01',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: '',
+  it('returns ok:false for an unknown id', async (t) => {
+    mockFetchOnce(t, { error: 'not_found' }, 404);
+    const result = await EventStore.edit('zzzz', { title: 'x' });
+    assert.strictEqual(result.ok, false);
+  });
+});
+
+describe('EventStore.remove', () => {
+  it('DELETEs /api/events with the id as a query param', async (t) => {
+    const calls = mockFetchOnce(t, { ok: true });
+    const result = await EventStore.remove('ab12');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls[0].url, '/api/events?id=ab12');
+    assert.strictEqual(calls[0].opts.method, 'DELETE');
+  });
+});
+
+describe('EventStore.approve / reject', () => {
+  it('approve() POSTs {action: "approve"} to /api/events/moderate', async (t) => {
+    const calls = mockFetchOnce(t, { event: { id: 'ab12', status: 'approved' } });
+    const result = await EventStore.approve('ab12');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.event.status, 'approved');
+    assert.strictEqual(calls[0].url, '/api/events/moderate?id=ab12');
+    assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'approve' });
+  });
+
+  it('reject() POSTs {action: "reject", reason} to /api/events/moderate', async (t) => {
+    const calls = mockFetchOnce(t, { event: { id: 'ab12', status: 'rejected' } });
+    const result = await EventStore.reject('ab12', 'Ei sovi');
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'reject', reason: 'Ei sovi' });
+  });
+
+  it('returns ok:false for an unauthorised caller', async (t) => {
+    mockFetchOnce(t, { error: 'Forbidden' }, 403);
+    const result = await EventStore.approve('ab12');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.error, 'Forbidden');
+  });
+});
+
+describe('EventStore.pending', () => {
+  it('GETs /api/events/pending', async (t) => {
+    const events = [{ id: 'a' }, { id: 'b' }];
+    const calls = mockFetchOnce(t, { events });
+    const result = await EventStore.pending();
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.events, events);
+    assert.strictEqual(calls[0].url, '/api/events/pending');
+  });
+});
+
+describe('EventStore.ownedBy', () => {
+  it('returns an empty list without a network call when no username is given', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('should not be called');
     });
-    assert.strictEqual(Object.prototype.hasOwnProperty.call(result, 'addedBy'), false);
+    assert.deepStrictEqual(await EventStore.ownedBy(''), { ok: true, events: [] });
+    assert.deepStrictEqual(await EventStore.ownedBy(undefined), { ok: true, events: [] });
+  });
+
+  it('GETs /api/events/mine when a username is given', async (t) => {
+    const events = [{ id: 'a', status: 'rejected' }];
+    const calls = mockFetchOnce(t, { events });
+    const result = await EventStore.ownedBy('omistaja');
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.events, events);
+    assert.strictEqual(calls[0].url, '/api/events/mine');
+  });
+});
+
+describe('EventStore.all', () => {
+  it('merges the server response with the local seed MEETUPS', async (t) => {
+    const serverEvents = [{ id: 'a', status: 'approved' }];
+    mockFetchOnce(t, { events: serverEvents });
+    const result = await EventStore.all();
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.events, MEETUPS.concat(serverEvents));
+  });
+
+  it('returns ok:false on failure without touching MEETUPS', async (t) => {
+    mockFetchOnce(t, { error: 'boom' }, 500);
+    const result = await EventStore.all();
+    assert.strictEqual(result.ok, false);
   });
 });
 
@@ -565,322 +625,6 @@ describe('regression: list keys for seed-only meetups (no id field)', () => {
   });
 });
 
-describe('EventStore.edit', () => {
-  it('updates a field and returns the updated event', () => {
-    const ev = EventStore.add({
-      title: 'Alkuperäinen',
-      date: '2026-09-01',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@org',
-      url: 'https://www.threads.com/edit-test',
-      addedBy: TEST_USER,
-    });
-    const updated = EventStore.edit(ev.id, { title: 'Päivitetty' });
-    assert.ok(updated, 'should return the updated event');
-    assert.strictEqual(updated.title, 'Päivitetty');
-  });
-
-  it('preserves the event id after edit', () => {
-    const ev = EventStore.add({
-      title: 'IdTesti',
-      date: '2026-09-02',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@a',
-      url: 'https://www.threads.com/id-testi',
-      addedBy: TEST_USER,
-    });
-    const updated = EventStore.edit(ev.id, { title: 'IdTesti Muokattu' });
-    assert.strictEqual(updated?.id, ev.id);
-  });
-
-  it('returns null for an unknown id', () => {
-    assert.strictEqual(EventStore.edit('zzzz', { title: 'Aave' }), null);
-  });
-
-  it('edit preserves fields that are not in the patch', () => {
-    const ev = EventStore.add({
-      title: 'SäilyTesti',
-      date: '2026-09-03',
-      city: 'tampere',
-      cat: 'karaoke',
-      org: '@x',
-      url: 'https://www.threads.com/sailytesti',
-      addedBy: TEST_USER,
-    });
-    const updated = EventStore.edit(ev.id, { title: 'SäilyTesti Uusi' });
-    assert.strictEqual(updated?.city, 'tampere');
-    assert.strictEqual(updated?.cat, 'karaoke');
-  });
-});
-
-describe('EventStore moderation — add / edit status', () => {
-  it('add() sets status to pending and records a submitted timestamp', () => {
-    const ev = EventStore.add({
-      title: 'Uusi miitti',
-      date: '2026-10-01',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/mod-add',
-      addedBy: TEST_USER,
-    });
-    assert.strictEqual(ev.status, 'pending');
-    assert.strictEqual(typeof ev.submitted, 'number');
-  });
-
-  it('edit() keeps status pending when it was already pending', () => {
-    const ev = EventStore.add({
-      title: 'Muokkaustesti',
-      date: '2026-10-02',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/mod-edit-pending',
-      addedBy: TEST_USER,
-    });
-    const updated = EventStore.edit(ev.id, { title: 'Muokattu' });
-    assert.strictEqual(updated.status, 'pending');
-  });
-
-  it('edit() preserves approved status', () => {
-    const ev = EventStore.add({
-      title: 'Hyväksytty',
-      date: '2026-10-03',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/mod-edit-approved',
-      addedBy: TEST_USER,
-    });
-    EventStore.approve(ev.id);
-    const updated = EventStore.edit(ev.id, { title: 'Hyväksytty muokattu' });
-    assert.strictEqual(updated.status, 'approved');
-  });
-
-  it('edit() resets a rejected event back to pending for re-review', () => {
-    const ev = EventStore.add({
-      title: 'Hylätty',
-      date: '2026-10-04',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/mod-edit-rejected',
-      addedBy: TEST_USER,
-    });
-    EventStore.reject(ev.id, 'Ei sovi');
-    const updated = EventStore.edit(ev.id, { title: 'Hylätty uudelleen' });
-    assert.strictEqual(updated.status, 'pending');
-    assert.strictEqual(Object.prototype.hasOwnProperty.call(updated, 'rejectReason'), false);
-  });
-
-  it('edit() preserves the original submitted timestamp', () => {
-    const ev = EventStore.add({
-      title: 'Aikaleimatesti',
-      date: '2026-10-05',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/mod-timestamp',
-      addedBy: TEST_USER,
-    });
-    const updated = EventStore.edit(ev.id, { title: 'Aikaleimatesti Uusi' });
-    assert.strictEqual(updated.submitted, ev.submitted);
-  });
-});
-
-describe('EventStore.approve / reject / pending', () => {
-  it('approve() sets status to approved', () => {
-    const ev = EventStore.add({
-      title: 'Hyväksy minut',
-      date: '2026-10-06',
-      city: 'turku',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/approve-me',
-      addedBy: TEST_USER,
-    });
-    const approved = EventStore.approve(ev.id);
-    assert.strictEqual(approved.status, 'approved');
-    assert.strictEqual(typeof approved.reviewedAt, 'number');
-  });
-
-  it('reject() sets status to rejected and stores an optional reason', () => {
-    const ev = EventStore.add({
-      title: 'Hylkää minut',
-      date: '2026-10-07',
-      city: 'turku',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/reject-me',
-      addedBy: TEST_USER,
-    });
-    const rejected = EventStore.reject(ev.id, 'Ei täytä ehtoja');
-    assert.strictEqual(rejected.status, 'rejected');
-    assert.strictEqual(rejected.rejectReason, 'Ei täytä ehtoja');
-  });
-
-  it('approve() and reject() return null for an unknown id', () => {
-    assert.strictEqual(EventStore.approve('zzzz'), null);
-    assert.strictEqual(EventStore.reject('zzzz'), null);
-  });
-
-  it('pending() lists only pending events, oldest submitted first', () => {
-    EventStore.save([]); // isolate from events added by earlier tests in this file
-    const first = EventStore.add({
-      title: 'Ensimmäinen',
-      date: '2026-11-01',
-      city: 'oulu',
-      cat: 'yleinen',
-      org: '@a',
-      url: 'https://www.threads.com/first',
-      addedBy: TEST_USER,
-    });
-    const second = EventStore.add({
-      title: 'Toinen',
-      date: '2026-11-02',
-      city: 'oulu',
-      cat: 'yleinen',
-      org: '@b',
-      url: 'https://www.threads.com/second',
-      addedBy: TEST_USER,
-    });
-    const approved = EventStore.add({
-      title: 'Kolmas — hyväksytty',
-      date: '2026-11-03',
-      city: 'oulu',
-      cat: 'yleinen',
-      org: '@c',
-      url: 'https://www.threads.com/third',
-      addedBy: TEST_USER,
-    });
-    EventStore.approve(approved.id);
-
-    const list = EventStore.pending();
-    assert.deepStrictEqual(
-      list.map((e) => e.id),
-      [first.id, second.id]
-    );
-  });
-});
-
-describe('EventStore.ownedBy', () => {
-  it('returns every submission by a handle regardless of status', () => {
-    EventStore.save([]);
-    const addedBy = { id: '1', username: 'omistaja', avatarUrl: '', profileUrl: '' };
-    const approvedEv = EventStore.add({
-      title: 'Omani hyväksytty',
-      date: '2026-11-10',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/owned-approved',
-      addedBy,
-    });
-    EventStore.approve(approvedEv.id);
-    const rejectedEv = EventStore.add({
-      title: 'Omani hylätty',
-      date: '2026-11-11',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/owned-rejected',
-      addedBy,
-    });
-    EventStore.reject(rejectedEv.id);
-    EventStore.add({
-      title: 'Muiden miitti',
-      date: '2026-11-12',
-      city: 'helsinki',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/not-owned',
-      addedBy: { id: '2', username: 'muu', avatarUrl: '', profileUrl: '' },
-    });
-
-    const mine = EventStore.ownedBy('omistaja');
-    assert.deepStrictEqual(mine.map((e) => e.id).sort(), [approvedEv.id, rejectedEv.id].sort());
-  });
-
-  it('returns an empty array when no username is given', () => {
-    assert.deepStrictEqual(EventStore.ownedBy(''), []);
-    assert.deepStrictEqual(EventStore.ownedBy(undefined), []);
-  });
-});
-
-describe('EventStore.all — moderation visibility', () => {
-  it('includes approved user events for any caller', () => {
-    EventStore.save([]);
-    const ev = EventStore.add({
-      title: 'Näkyvä kaikille',
-      date: '2026-12-01',
-      city: 'lahti',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/visible-all',
-      addedBy: TEST_USER,
-    });
-    EventStore.approve(ev.id);
-    const list = EventStore.all('joku-muu');
-    assert.ok(list.some((e) => e.id === ev.id));
-  });
-
-  it("shows a user's own pending event to themself but hides it from others", () => {
-    EventStore.save([]);
-    const ev = EventStore.add({
-      title: 'Oma odottava',
-      date: '2026-12-02',
-      city: 'lahti',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/own-pending',
-      addedBy: { id: '9', username: 'lahtelainen', avatarUrl: '', profileUrl: '' },
-    });
-    assert.ok(EventStore.all('lahtelainen').some((e) => e.id === ev.id));
-    assert.ok(!EventStore.all('joku-muu').some((e) => e.id === ev.id));
-    assert.ok(!EventStore.all().some((e) => e.id === ev.id));
-  });
-
-  it('never includes a rejected event, even for its own submitter', () => {
-    EventStore.save([]);
-    const ev = EventStore.add({
-      title: 'Hylätty piiloon',
-      date: '2026-12-03',
-      city: 'lahti',
-      cat: 'yleinen',
-      org: '@x',
-      url: 'https://www.threads.com/rejected-hidden',
-      addedBy: { id: '9', username: 'lahtelainen', avatarUrl: '', profileUrl: '' },
-    });
-    EventStore.reject(ev.id);
-    assert.ok(!EventStore.all('lahtelainen').some((e) => e.id === ev.id));
-  });
-});
-
-describe('EventStore load() migration — legacy records without status', () => {
-  it('treats a persisted event with no status field as approved', () => {
-    localStorage.setItem(
-      'threadsmiitit_user_events_v1',
-      JSON.stringify([
-        {
-          id: 'lgcy',
-          user: true,
-          title: 'Vanha tallennus',
-          date: '2026-06-01',
-          city: 'helsinki',
-          cat: 'yleinen',
-          org: ['@x'],
-          url: 'https://www.threads.com/legacy',
-        },
-      ])
-    );
-    const loaded = EventStore.load();
-    assert.strictEqual(loaded[0].status, 'approved');
-    EventStore.save([]); // clean up for subsequent tests
-  });
-});
-
 describe('EventStore canonicalKunta', () => {
   it('finds Helsinki (case insensitive)', () => {
     assert.strictEqual(EventStore.canonicalKunta('HELSINKI'), 'Helsinki');
@@ -895,39 +639,12 @@ describe('EventStore canonicalKunta', () => {
   });
 });
 
-// ── buildAddedBy ─────────────────────────────────────────────────────────────
-// Shared between ScreenLisaa's manual submit() and chatActions' applyAction()
-// so the addedBy shape can't drift between the two "add a meetup" entry points.
-
-const { buildAddedBy } = await import('../src/lib/addedBy.js');
-
-describe('buildAddedBy', () => {
-  it('returns undefined when no user is signed in', () => {
-    assert.strictEqual(buildAddedBy(null), undefined);
-  });
-
-  it('picks id, username, avatarUrl, profileUrl from the user', () => {
-    const user = {
-      id: 'u1',
-      username: 'kirjoittaja',
-      avatarUrl: 'https://example.com/av.jpg',
-      profileUrl: 'https://www.threads.com/@kirjoittaja',
-      extraField: 'should not leak through',
-    };
-    assert.deepStrictEqual(buildAddedBy(user), {
-      id: 'u1',
-      username: 'kirjoittaja',
-      avatarUrl: 'https://example.com/av.jpg',
-      profileUrl: 'https://www.threads.com/@kirjoittaja',
-    });
-  });
-});
-
 // ── ChatAssistant.applyAction ────────────────────────────────────────────────
-// Regression: chat-added meetups must be attributed with addedBy, the same
-// way ScreenLisaa's manual submit() does, so they stay visible to their
-// creator (main list + ProfileSheet "Miittini") instead of only surfacing
-// once an admin approves them.
+// applyAction is now async (it goes through EventStore's server-backed API),
+// and no longer constructs `addedBy` itself — the server derives ownership
+// from the session (see netlify/functions/events.js), so there's nothing left
+// for the client to attribute. These tests mock fetch instead of asserting on
+// a client-built addedBy shape.
 
 const { applyAction } = await import('../src/lib/chatActions.js');
 
@@ -939,8 +656,9 @@ describe('ChatAssistant.applyAction — add', () => {
     profileUrl: 'https://www.threads.com/@kirjoittaja',
   };
 
-  it('attaches addedBy for the current user, matching ScreenLisaa', () => {
-    const result = applyAction(
+  it('POSTs to /api/events via EventStore.add when a user is signed in', async (t) => {
+    const calls = mockFetchOnce(t, { event: { id: 'ab12', status: 'pending' } }, 201);
+    const result = await applyAction(
       {
         op: 'add',
         title: 'Chat-miitti',
@@ -954,11 +672,16 @@ describe('ChatAssistant.applyAction — add', () => {
       USER
     );
     assert.strictEqual(result.changed, true);
-    assert.deepStrictEqual(result.event.addedBy, USER);
+    assert.strictEqual(result.event.id, 'ab12');
+    assert.strictEqual(calls[0].url, '/api/events');
+    assert.strictEqual(calls[0].opts.method, 'POST');
   });
 
-  it('rejects add with no user logged in — anonymous submission is not allowed', () => {
-    const result = applyAction(
+  it('rejects add with no user logged in — anonymous submission is not allowed', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('should not be called for an anonymous caller');
+    });
+    const result = await applyAction(
       {
         op: 'add',
         title: 'Anon-miitti',
@@ -975,29 +698,64 @@ describe('ChatAssistant.applyAction — add', () => {
     assert.strictEqual(result.kind, 'error');
   });
 
-  it('a chat-added event is then found under the creator via addedBy.username', () => {
-    const result = applyAction(
+  it('rejects add without a valid Threads url regardless of user', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('should not be called — url is invalid before any network call');
+    });
+    const result = await applyAction(
+      { op: 'add', title: 'Ei linkkiä', date: '2026-08-13' },
+      null,
+      USER
+    );
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.kind, 'error');
+  });
+
+  it('surfaces the server error when the add request fails', async (t) => {
+    mockFetchOnce(t, { error: 'title is required' }, 400);
+    const result = await applyAction(
       {
         op: 'add',
-        title: 'Omani',
-        date: '2026-08-12',
+        title: '',
+        date: '2026-08-14',
         city: 'helsinki',
         cat: 'yleinen',
         org: '@test',
-        url: 'https://www.threads.com/omani',
+        url: 'https://www.threads.com/x',
       },
       null,
       USER
     );
-    const mine = EventStore.load().filter((e) => e.addedBy?.username === USER.username);
-    assert.ok(
-      mine.some((e) => e.id === result.event.id),
-      'chat-added event should be attributed to its creator'
-    );
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.kind, 'error');
+  });
+});
+
+describe('ChatAssistant.applyAction — remove', () => {
+  const USER = {
+    id: 'u1',
+    username: 'kirjoittaja',
+    avatarUrl: null,
+    profileUrl: 'https://www.threads.com/@kirjoittaja',
+  };
+
+  // Regression: the result for a successful remove has no `event` field
+  // (there's nothing left to describe), but the caller (ChatAssistant.jsx)
+  // still needs `changed: true` and a `label` to show a confirmation.
+  it('DELETEs /api/events and reports success without an event field', async (t) => {
+    const calls = mockFetchOnce(t, { ok: true });
+    const result = await applyAction({ op: 'remove', id: '#ab12' }, null, USER);
+    assert.strictEqual(result.changed, true);
+    assert.strictEqual(result.kind, 'remove');
+    assert.strictEqual(result.label, 'Poistettu #ab12');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(result, 'event'), false);
+    assert.strictEqual(calls[0].url, '/api/events?id=ab12');
+    assert.strictEqual(calls[0].opts.method, 'DELETE');
   });
 
-  it('rejects add without a valid Threads url regardless of user', () => {
-    const result = applyAction({ op: 'add', title: 'Ei linkkiä', date: '2026-08-13' }, null, USER);
+  it('reports an error for an id the server rejects', async (t) => {
+    mockFetchOnce(t, { error: 'not_found' }, 404);
+    const result = await applyAction({ op: 'remove', id: 'zzzz' }, null, USER);
     assert.strictEqual(result.changed, false);
     assert.strictEqual(result.kind, 'error');
   });

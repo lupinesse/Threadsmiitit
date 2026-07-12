@@ -41,6 +41,22 @@ export default [
     },
   },
 
+  // Shared client/server field-normalization helpers — pure functions/regex
+  // with no platform-specific globals, imported by both src/ (browser) and
+  // netlify/functions/ (Node).
+  {
+    files: ['shared/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-empty': 'error',
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+
   // Netlify Functions — ES modules running in Node 18+ (fetch + Response are
   // built-in globals in the Netlify Functions v2 runtime).
   {

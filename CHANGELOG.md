@@ -24,7 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ScreenLisaa`'s new login gate called its `useState` hooks after the gate's early return; if `user` ever flips back to logged-in on the same mounted instance (the add form was open, `user` briefly dropped to `null`, then came back), React silently discarded the fiber's hook state and the form reset to blank instead of keeping what the user had typed. All hooks now run unconditionally before the gate.
 
 ### Security
-- Anonymous meetup submissions are no longer allowed: `EventStore.add()` now throws unless `addedBy.username` is present, `ScreenLisaa`'s add form shows a "log in with Threads" prompt instead of the form when logged out, and the chat assistant's `add` action refuses with a Finnish error message when no user is logged in. This is a client-side (UX + data-layer) gate, not a server-side one — see the note below on `requireUser`/`requireAdmin` not yet being wired into a write endpoint.
+- The moderation queue's approve/reject actions, and all meetup
+  submission/edit/delete, are now enforced server-side instead of being a
+  client-side gate. New Netlify Functions (`netlify/functions/events.js`,
+  `events-mine.js`, `events-pending.js`, `events-moderate.js`) wire the
+  previously-unused `requireUser`/`requireAdmin` guards
+  (`netlify/functions/lib/session.mjs`) into real write endpoints, backed by
+  a shared `netlify/functions/lib/eventsStore.mjs` data layer on Netlify
+  Blobs (new dependency: `@netlify/blobs`). `src/store/EventStore.js` is now
+  a thin async fetch client for these endpoints rather than the
+  authoritative data store; `AdminInbox.jsx`'s "UX gate, not a security
+  boundary" doc comment is corrected accordingly. Supersedes the earlier
+  client-side-only anonymous-submission gate (`EventStore.add()` throwing
+  without `addedBy`) noted below — the server now derives and verifies
+  ownership from the session itself, so `src/lib/addedBy.js`'s manual
+  `addedBy` construction is no longer needed and has been removed.
+- Anonymous meetup submissions are no longer allowed: `EventStore.add()` now throws unless `addedBy.username` is present, `ScreenLisaa`'s add form shows a "log in with Threads" prompt instead of the form when logged out, and the chat assistant's `add` action refuses with a Finnish error message when no user is logged in. This was a client-side (UX + data-layer) gate, since server-side enforcement (`requireUser`/`requireAdmin`) wasn't yet wired into a write endpoint — see the entry above for the server-side follow-up that supersedes it.
 - Replaced the client-only, unsigned identity (a base64 user payload in the URL hash, cached in `localStorage`) with a server-verifiable session: `netlify/functions/auth-callback.js` now mints a compact HMAC-SHA256-signed token (`netlify/functions/lib/session.mjs`, `node:crypto` only) in an httpOnly, `Secure`, `SameSite=Lax` `tm_session` cookie instead of redirecting with `#auth=<payload>`. New `GET /api/auth/whoami` and `POST /api/auth/logout` functions let the client read/clear auth state without ever seeing the cookie's contents. `AuthContext` now hydrates from `whoami` on mount (adds `loading`) and its `isAdmin` flag reflects the server's verdict rather than a client-side list comparison. `netlify/functions/lib/admins.mjs` is the single source of truth for moderator handles, re-exported by `src/data.js`. This also removes the latent UTF-8 `atob` decode bug (`src/lib/base64.js` and its tests deleted, now unused) and the `threadsmiitit_user_v1` localStorage entry. Requires a new `SESSION_SECRET` env var (see `.env.example`); it is a foundation for server-enforced submission attribution and moderation guards (`requireUser`/`requireAdmin`), not yet wired into any write endpoint.
 - `/api/chat` proxy now enforces an Origin/Referer allowlist (set `ALLOWED_ORIGIN` env var; defaults to `https://threadsmiitit.netlify.app`), rejects prompts that are not a non-empty string or exceed 4 000 characters, and configures per-IP rate limiting via Netlify edge rules in `netlify.toml`.
 - Validation logic extracted to `netlify/functions/lib/validate-chat-request.mjs` (unit-tested); dev Vite plugin shares the same prompt validator.

@@ -21,14 +21,14 @@ import { IconSpark, IconClose, IconCheck, IconArrowUpRight } from './icons.jsx';
 /**
  * Builds the system prompt context listing known cities, categories, and the
  * user's own meetups with their IDs.
+ * @param {object[]} myEvents - The signed-in user's own submissions, any status.
  * @returns {string}
  */
-function systemContext() {
+function systemContext(myEvents) {
   const cities = CITIES.map((c) => `${c.key} (${c.short})`).join(', ');
   const cats = Object.keys(CATEGORIES)
     .map((k) => `${k} (${CATEGORIES[k].label})`)
     .join(', ');
-  const myEvents = EventStore.load();
   const mine = myEvents.length
     ? myEvents
         .map(
@@ -244,6 +244,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
 
     try {
       const link = parseThreadsLink(text);
+      const myEvents = user ? ((await EventStore.ownedBy(user.username)).events ?? []) : [];
       const history = next
         .slice(-8)
         .map((m) => `${m.role === 'user' ? 'Käyttäjä' : 'Apuri'}: ${m.text}`)
@@ -251,7 +252,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
       const linkNote = link
         ? `\n\nKäyttäjä liitti Threads-linkin. Poimi siitä AUTOMAATTISESTI nämä äläkä kysy niitä uudelleen:\n- url: ${link.url}\n- järjestäjä (org): ${link.handle}\nKäytä näitä suoraan add-toiminnossa. Et voi nähdä postauksen sisältöä, joten kysy ystävällisesti loput pakolliset tiedot joita ei vielä ole (nimi, päivämäärä, kaupunki). Jos jokin niistä tuli jo aiemmin viesteissä, käytä sitä.`
         : '';
-      const prompt = `${systemContext()}${linkNote}\n\nKeskustelu tähän asti:\n${history}\n\nVastaa nyt JSON-objektina.`;
+      const prompt = `${systemContext(myEvents)}${linkNote}\n\nKeskustelu tähän asti:\n${history}\n\nVastaa nyt JSON-objektina.`;
       const raw = await complete(prompt);
       const parsed = parseJSON(raw);
 
@@ -260,7 +261,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
 
       if (parsed && Array.isArray(parsed.actions)) {
         for (const a of parsed.actions) {
-          results.push(applyAction(a, link, user));
+          results.push(await applyAction(a, link, user));
         }
       }
 
@@ -273,7 +274,12 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
         {
           role: 'assistant',
           text: reply,
-          cards: results.filter((r) => r && r.event).map((r) => ({ ...r })),
+          // A successful 'remove' has no `event` (there's nothing left to
+          // show details for) but ResultChip still renders a confirmation
+          // for it using only `label` — don't filter those out too.
+          cards: results
+            .filter((r) => r && (r.event || r.kind === 'remove'))
+            .map((r) => ({ ...r })),
         },
       ]);
     } catch (e) {
