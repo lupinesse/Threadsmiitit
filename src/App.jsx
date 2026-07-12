@@ -6,7 +6,7 @@
  * so it fills the viewport on mobile and stays centred on desktop.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
@@ -55,13 +55,45 @@ export default function App() {
   const [infoSub, setInfoSub] = useState(null);
 
   // ── Data state ─────────────────────────────────────────────────────────
-  /** Forces a re-read from EventStore after the assistant mutates events. */
+  /** Triggers a refetch from the server after the assistant mutates events. */
   const [bump, setBump] = useState(0);
   const refresh = useCallback(() => setBump((n) => n + 1), []);
-  // Re-derive event list whenever bump changes (i.e. after AI assistant mutations
-  // or moderation actions). Includes the current user's own pending submissions.
-  const events = useMemo(() => EventStore.all(user?.username), [bump, user?.username]);
-  const pendingCount = useMemo(() => (isAdmin ? EventStore.pending().length : 0), [bump, isAdmin]);
+  const [events, setEvents] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Refetch the visible event list whenever bump changes (i.e. after AI
+  // assistant mutations or moderation actions). Includes the current user's
+  // own pending submissions.
+  useEffect(() => {
+    let cancelled = false;
+    EventStore.all().then((r) => {
+      if (cancelled) return;
+      if (r.ok) setEvents(r.events);
+      // On failure, deliberately leave `events` as-is rather than clearing
+      // it to [] — a transient fetch error shouldn't blank out an
+      // already-loaded feed. Logged so a broken fetch isn't silent.
+      else console.warn('[App] Failed to load events:', r.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bump, user?.username]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setPendingCount(0);
+      return;
+    }
+    let cancelled = false;
+    EventStore.pending().then((r) => {
+      if (cancelled) return;
+      if (r.ok) setPendingCount(r.events.length);
+      else console.warn('[App] Failed to load pending count:', r.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bump, isAdmin]);
 
   // ── Interaction state ─────────────────────────────────────────────────
   const [selected, setSelected] = useState(null);
@@ -561,6 +593,7 @@ export default function App() {
           t={t}
           favs={favs}
           events={events}
+          bump={bump}
           onOpen={(m) => {
             setProfileOpen(false);
             setSelected(m);

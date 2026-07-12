@@ -10,7 +10,7 @@
  *  - Kirjaudu ulos button
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CITIES } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -19,7 +19,10 @@ import { IconArrowUpRight, IconClose, IconCheck, IconClock } from './icons.jsx';
 
 /**
  * @param {object} props - Props: open, onClose, t (theme), favs (Set), events, onOpen, onDelete,
- *   onOpenChat, onEditInForm, notifPref, onSubscribeCity, onUnsubscribeCity.
+ *   onOpenChat, onEditInForm, notifPref, onSubscribeCity, onUnsubscribeCity, bump.
+ * @param {number} [props.bump] - App's global refresh counter; included in the Miittini fetch's
+ *   effect deps so a mutation made elsewhere (AdminInbox, ChatAssistant) while this sheet stays
+ *   open refetches the list instead of showing a stale status.
  * @returns {React.ReactElement}
  */
 export function ProfileSheet({
@@ -35,18 +38,56 @@ export function ProfileSheet({
   notifPref,
   onSubscribeCity,
   onUnsubscribeCity,
+  bump,
 }) {
   const { user, logout } = useAuth();
+  const [mine, setMine] = useState([]);
+  const [mineLoading, setMineLoading] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+
+  // Own submissions regardless of moderation status (unlike `events`, which
+  // hides other users' pending items and everyone's rejected ones). Fetched
+  // when the sheet opens, after each successful delete, and whenever `bump`
+  // changes — so an approval/edit made elsewhere (AdminInbox, ChatAssistant)
+  // while this sheet happens to stay open doesn't leave the list stale.
+  useEffect(() => {
+    if (!open || !user) return;
+    let cancelled = false;
+    setMineLoading(true);
+    setDeleteError(null);
+    EventStore.ownedBy(user.username).then((r) => {
+      if (cancelled) return;
+      setMineLoading(false);
+      // A failed fetch must not render identically to "no submissions yet".
+      if (r.ok) {
+        setMine(r.events);
+      } else {
+        setMine([]);
+        setDeleteError(r.error);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user?.username, refreshTick, bump]);
+
   if (!user) return null;
 
   const tc = t.card;
   const favourited = events.filter((m) => favs.has(EventStore.favKey(m)));
-  // Own submissions regardless of moderation status (unlike `events`, which
-  // hides other users' pending items and everyone's rejected ones).
-  const mine = EventStore.ownedBy(user.username);
 
-  function handleDelete(id) {
-    EventStore.remove(id);
+  async function handleDelete(id) {
+    setDeletingId(id);
+    setDeleteError(null);
+    const result = await EventStore.remove(id);
+    setDeletingId(null);
+    if (!result.ok) {
+      setDeleteError(result.error);
+      return;
+    }
+    setRefreshTick((n) => n + 1);
     onDelete(id);
   }
 
@@ -183,7 +224,14 @@ export function ProfileSheet({
 
         {/* ── Miittini ───────────────────────────────────────────── */}
         <Section label={`Miittini${mine.length ? ` (${mine.length})` : ''}`} tc={tc}>
-          {mine.length === 0 ? (
+          {deleteError && (
+            <div style={{ marginBottom: 10, fontSize: 12.5, color: '#C2483F', fontWeight: 600 }}>
+              {deleteError}
+            </div>
+          )}
+          {mineLoading ? (
+            <Empty tc={tc}>Ladataan…</Empty>
+          ) : mine.length === 0 ? (
             <Empty tc={tc}>Et ole vielä lisännyt miittejä kirjautuneena</Empty>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -221,8 +269,16 @@ export function ProfileSheet({
                     >
                       Muokkaa apurilla
                     </button>
-                    <button onClick={() => handleDelete(m.id)} style={actionBtn(tc, true)}>
-                      Poista
+                    <button
+                      onClick={() => handleDelete(m.id)}
+                      disabled={deletingId === m.id}
+                      style={{
+                        ...actionBtn(tc, true),
+                        opacity: deletingId === m.id ? 0.5 : 1,
+                        cursor: deletingId === m.id ? 'default' : 'pointer',
+                      }}
+                    >
+                      {deletingId === m.id ? 'Poistetaan…' : 'Poista'}
                     </button>
                   </div>
                 </div>

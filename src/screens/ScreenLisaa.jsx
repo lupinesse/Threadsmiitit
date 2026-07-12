@@ -13,6 +13,8 @@ import { useState, useId } from 'react';
 import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { THREADS_URL_RE as URL_RE } from '../../shared/eventFields.mjs';
 import { hexA, cityName, MeetupCard, Pill } from '../components/ui.jsx';
 import {
   IconSpark,
@@ -21,10 +23,10 @@ import {
   IconChevron,
   IconPin,
   IconSearch,
+  IconThreads,
 } from '../components/icons.jsx';
 
 const STEPS = ['Perustiedot', 'Laji & paikka', 'Linkki', 'Valmis'];
-const URL_RE = /^https?:\/\/(www\.)?threads\.(com|net)\//i;
 
 /**
  * Field wrapper with a label and optional hint.
@@ -213,6 +215,7 @@ function CityAutocomplete({ t, value, onChange }) {
  * @param {Function} [props.onCancel] - Called when the user cancels without saving (edit mode).
  */
 export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, onCancel }) {
+  const { login } = useAuth();
   const isEdit = !!editTarget;
 
   // Determine whether editTarget's city is a built-in (non-custom) entry so we
@@ -221,6 +224,12 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
     ? !!CITIES.find((c) => !c.custom && c.key === editTarget.city)
     : false;
 
+  // All hooks must run unconditionally, before the anonymous-submission gate
+  // below — `user` can flip on the same mounted instance (AuthContext
+  // hydrates asynchronously via whoami, and it can drop out and come back).
+  // An early return above these hooks would make React skip them whenever
+  // the gate is showing, silently resetting this state — a half-filled
+  // form would empty itself — the next time the gate turns back off.
   const [step, setStep] = useState(0);
   const [f, setF] = useState(() => {
     if (!editTarget) return { title: '', city: '', cat: '', date: '', org: '', url: '' };
@@ -237,8 +246,71 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
   });
   const [saved, setSaved] = useState(null);
   const [customCity, setCustomCity] = useState(isEdit && !editCityIsBuiltIn);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  // Anonymous submission is not allowed — every meetup must be attributable
+  // to a logged-in Threads user. Editing an existing meetup keeps working
+  // for whoever already holds its ID, unrelated to this gate.
+  if (!isEdit && !user) {
+    return (
+      <div style={{ padding: '32px 20px 28px', textAlign: 'center' }}>
+        <div
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 999,
+            background: hexA(t.brand, 0.12),
+            color: t.brand,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 14,
+          }}
+        >
+          <IconThreads size={28} />
+        </div>
+        <h2
+          style={{
+            margin: '0 0 6px',
+            fontFamily: t.fontHead,
+            fontWeight: t.headWeight,
+            fontSize: 21,
+            color: t.ink,
+            letterSpacing: t.headSpacing,
+          }}
+        >
+          Kirjaudu sisään lisätäksesi miitin
+        </h2>
+        <p style={{ margin: '0 0 20px', fontSize: 13.5, color: t.inkSoft, lineHeight: 1.5 }}>
+          Jotta miittejä voi jäljittää järjestäjäänsä, jokaisen lisääjän täytyy olla kirjautunut
+          Threads-tunnuksellaan.
+        </p>
+        <button
+          onClick={login}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            boxSizing: 'border-box',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '13px 22px',
+            borderRadius: t.radiusPill,
+            background: t.brand,
+            color: t.brandInk,
+            fontWeight: 700,
+            fontSize: 14.5,
+            fontFamily: 'inherit',
+          }}
+        >
+          <IconThreads size={17} sw={1.5} /> Kirjaudu Threadsilla
+        </button>
+      </div>
+    );
+  }
 
   const cityOk = customCity ? !!EventStore.canonicalKunta(f.city) : !!f.city.trim();
   const urlOk = URL_RE.test(f.url.trim());
@@ -252,28 +324,19 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
           ? f.org.trim() && urlOk
           : true;
 
-  function submit() {
-    if (isEdit) {
-      const ev = EventStore.edit(editTarget.id, f);
-      if (ev) {
-        setSaved(ev);
-        refresh?.();
-      }
+  async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    // The server derives the submission's owner from the session cookie —
+    // addedBy is never sent by the client.
+    const result = isEdit ? await EventStore.edit(editTarget.id, f) : await EventStore.add(f);
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(result.error);
       return;
     }
-    const payload = user
-      ? {
-          ...f,
-          addedBy: {
-            id: user.id,
-            username: user.username,
-            avatarUrl: user.avatarUrl,
-            profileUrl: user.profileUrl,
-          },
-        }
-      : f;
-    const ev = EventStore.add(payload);
-    setSaved(ev);
+    setSaved(result.event);
     refresh?.();
   }
 
@@ -716,6 +779,25 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
         </div>
       )}
 
+      {/* Submit error banner */}
+      {submitError && (
+        <div
+          role="alert"
+          style={{
+            marginTop: 20,
+            padding: '11px 14px',
+            borderRadius: t.radiusSm,
+            background: hexA('#C2483F', 0.1),
+            border: `1px solid ${hexA('#C2483F', 0.28)}`,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#C2483F',
+          }}
+        >
+          {submitError}
+        </div>
+      )}
+
       {/* Navigation */}
       <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
         {step > 0 ? (
@@ -756,24 +838,30 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
           </button>
         ) : null}
         <button
-          disabled={!canNext}
+          disabled={!canNext || submitting}
           onClick={() => (step < 3 ? setStep(step + 1) : submit())}
           style={{
             all: 'unset',
-            cursor: canNext ? 'pointer' : 'not-allowed',
+            cursor: canNext && !submitting ? 'pointer' : 'not-allowed',
             boxSizing: 'border-box',
             flex: 1,
             textAlign: 'center',
             padding: '14px 20px',
             borderRadius: t.radiusPill,
-            background: canNext ? t.brand : t.line,
-            color: canNext ? t.brandInk : t.inkSoft,
+            background: canNext && !submitting ? t.brand : t.line,
+            color: canNext && !submitting ? t.brandInk : t.inkSoft,
             fontWeight: 700,
             fontSize: 15,
             fontFamily: 'inherit',
           }}
         >
-          {step < 3 ? 'Jatka' : isEdit ? 'Tallenna muutokset' : 'Lähetä miitti'}
+          {step < 3
+            ? 'Jatka'
+            : submitting
+              ? 'Lähetetään…'
+              : isEdit
+                ? 'Tallenna muutokset'
+                : 'Lähetä miitti'}
         </button>
       </div>
     </div>
