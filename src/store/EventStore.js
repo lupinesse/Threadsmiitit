@@ -198,7 +198,7 @@ function normalize(p) {
  * non-2xx failures into a `{ ok: false, error }` result instead of throwing.
  * @param {string} url
  * @param {RequestInit} [opts]
- * @returns {Promise<{ok:true, [key:string]: unknown}|{ok:false, error:string}>}
+ * @returns {Promise<object>} `{ok: true, ...body}` on success, `{ok: false, error: string}` on failure.
  */
 async function apiFetch(url, opts = {}) {
   let res;
