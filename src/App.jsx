@@ -532,6 +532,9 @@ export default function App() {
             background: t.surface,
             borderTop: `1px solid ${t.line}`,
             display: 'flex',
+            // Horizontal padding reserves room for the :focus-visible ring on the
+            // edge tabs, which would otherwise be clipped by the app column's overflow:hidden.
+            padding: '0 4px',
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
           }}
         >
