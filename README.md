@@ -123,3 +123,5 @@ See [CITATION.cff](CITATION.cff) for how to cite this project.
 ## License
 
 MIT — see [LICENSE](LICENSE). Covers both code and documentation in this repository.
+
+<!-- test: verifying chatgpt-pr-review secrets -->
