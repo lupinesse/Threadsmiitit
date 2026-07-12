@@ -5,7 +5,7 @@
  */
 
 import EventStore from '../store/EventStore.js';
-import { buildAddedBy } from './addedBy.js';
+import { THREADS_URL_RE } from '../../shared/eventFields.mjs';
 
 /**
  * Extracts a Threads post URL and organizer handle from free text.
@@ -44,34 +44,35 @@ export function parseJSON(s) {
 }
 
 /**
- * Applies a single action from the assistant's response to EventStore.
+ * Applies a single action from the assistant's response via EventStore's
+ * server-backed API. Requires a signed-in user for every op — the server
+ * derives ownership from the session, so an anonymous caller can't add,
+ * edit, or remove anything. Checked explicitly up front (rather than
+ * letting the network call fail with a generic error) so the assistant can
+ * reply with a helpful Finnish message instead.
  * @param {object} a - Action object with op, and relevant fields.
  * @param {object|null} link - Detected Threads link, or null if none found.
  * @param {object|null} user - Currently logged-in user, or null if signed out.
- * @returns {object|null} Result object with changed, kind, label (and optional event), or null.
+ * @returns {Promise<object|null>} Result object with changed, kind, label (and optional event), or null.
  */
-export function applyAction(a, link, user) {
+export async function applyAction(a, link, user) {
   if (!a || !a.op) return null;
 
+  if (!user) {
+    return {
+      changed: false,
+      kind: 'error',
+      label: 'Kirjaudu sisään Threadsilla ennen kuin muokkaat miittejä',
+    };
+  }
+
   if (a.op === 'add') {
-    // Anonymous submission is not allowed — every meetup must be attributable
-    // to a logged-in Threads user, same rule as the manual form (ScreenLisaa).
-    // Checked explicitly (rather than letting EventStore.add's own guard
-    // throw) so the assistant can reply with a helpful message instead of
-    // the generic "connection lost" error shown for unexpected exceptions.
-    if (!user) {
-      return {
-        changed: false,
-        kind: 'error',
-        label: 'Kirjaudu sisään Threadsilla ennen kuin lisäät miitin',
-      };
-    }
     // Backfill url/org from a pasted Threads link if the model omitted them.
     if (link) {
       if (!a.url) a.url = link.url;
       if (!a.org) a.org = link.handle;
     }
-    const validUrl = /^https?:\/\/(www\.)?threads\.(com|net)\//i.test(String(a.url ?? '').trim());
+    const validUrl = THREADS_URL_RE.test(String(a.url ?? '').trim());
     if (!validUrl) {
       return {
         changed: false,
@@ -79,23 +80,30 @@ export function applyAction(a, link, user) {
         label: 'Threads-postauslinkki puuttuu — miittiä ei lisätty',
       };
     }
-    const ev = EventStore.add({ ...a, addedBy: buildAddedBy(user) });
-    return { changed: true, kind: 'add', event: ev, label: `Lisätty #${ev.id}` };
+    const result = await EventStore.add(a);
+    return result.ok
+      ? { changed: true, kind: 'add', event: result.event, label: `Lisätty #${result.event.id}` }
+      : { changed: false, kind: 'error', label: result.error };
   }
 
   if (a.op === 'edit' && a.id) {
-    const ev = EventStore.edit(String(a.id).replace('#', ''), a);
-    return ev
-      ? { changed: true, kind: 'edit', event: ev, label: `Päivitetty #${ev.id}` }
-      : { changed: false, kind: 'error', label: `Tunnistetta #${a.id} ei löytynyt` };
+    const id = String(a.id).replace('#', '');
+    const result = await EventStore.edit(id, a);
+    return result.ok
+      ? {
+          changed: true,
+          kind: 'edit',
+          event: result.event,
+          label: `Päivitetty #${result.event.id}`,
+        }
+      : { changed: false, kind: 'error', label: `Tunnistetta #${id} ei löytynyt` };
   }
 
   if (a.op === 'remove' && a.id) {
     const id = String(a.id).replace('#', '');
-    const ev = EventStore.find(id);
-    const ok = EventStore.remove(id);
-    return ok
-      ? { changed: true, kind: 'remove', event: ev, label: `Poistettu #${id}` }
+    const result = await EventStore.remove(id);
+    return result.ok
+      ? { changed: true, kind: 'remove', label: `Poistettu #${id}` }
       : { changed: false, kind: 'error', label: `Tunnistetta #${id} ei löytynyt` };
   }
 

@@ -11,11 +11,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/unit.mjs test/e2e.mjs \".github/scripts/test/**/*.test.mjs\"",
-    "lint": "eslint \"src/**/*.{js,jsx}\" \"*.js\" \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\" && stylelint \"src/css/**/*.scss\"",
+    "test": "node --test test/unit.mjs test/events-store.unit.mjs test/events-functions.unit.mjs test/e2e.mjs \".github/scripts/test/**/*.test.mjs\"",
+    "lint": "eslint \"src/**/*.{js,jsx}\" \"*.js\" \"test/**/*.mjs\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\" \"shared/**/*.mjs\" && stylelint \"src/css/**/*.scss\"",
     "lint:css": "stylelint \"src/css/**/*.scss\"",
-    "format": "prettier --write \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\"",
-    "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\"",
+    "format": "prettier --write \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\" \"shared/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\" \"shared/**/*.mjs\"",
     "prepare": "husky",
     "docs": "jsdoc -c jsdoc.config.json",
     "clean-branches": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-branches.ps1"
@@ -44,9 +44,14 @@
     "netlify/functions/**/*.{js,mjs}": [
       "eslint",
       "prettier --write"
+    ],
+    "shared/**/*.mjs": [
+      "eslint",
+      "prettier --write"
     ]
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

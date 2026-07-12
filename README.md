@@ -24,7 +24,7 @@ Finnish community meetup calendar — aggregates Threads-posted meetups across F
 
 ### Data source
 
-The seed meetup and city list in `src/data.js` is manually transcribed from the community listing at [sites.google.com/view/threadsmiitit](https://sites.google.com/view/threadsmiitit) and from individual Threads posts (linked per-entry). It is refreshed periodically by a maintainer — see the file's header comment and git history for details. Meetups added by users through the app live only in their own browser (`EventStore`, backed by `localStorage`) and are never uploaded anywhere.
+The seed meetup and city list in `src/data.js` is manually transcribed from the community listing at [sites.google.com/view/threadsmiitit](https://sites.google.com/view/threadsmiitit) and from individual Threads posts (linked per-entry). It is refreshed periodically by a maintainer — see the file's header comment and git history for details. Meetups added by users through the app are submitted to a shared server-side store (`EventStore` → `/api/events*` Netlify Functions → Netlify Blobs) and only reach the public feed once an admin approves them.
 
 ## Development
 
@@ -98,7 +98,7 @@ Runs unit tests and one end-to-end test on Node's built-in test runner. The end-
 | Styles | SCSS via sass (global resets only; components use inline styles) |
 | AI | Anthropic Messages API via Netlify Function (`/api/chat`) in production; Vite dev middleware locally |
 | Deploy | Netlify (SPA redirect + Netlify Functions v2) |
-| Storage | localStorage via EventStore |
+| Storage | Netlify Blobs via EventStore + `/api/events*` Netlify Functions (favourites and custom cities stay in localStorage) |
 | Lint | ESLint + Prettier + Stylelint + commitlint |
 | Tests | Node built-in `node:test` |
 

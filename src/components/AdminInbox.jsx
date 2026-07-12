@@ -2,14 +2,17 @@
  * @fileoverview Admin moderation queue — lists user-submitted meetups awaiting
  * review and lets an admin publish (approve) or reject each one before it
  * reaches the public feed. Only rendered for signed-in admins (see
- * `AuthContext.isAdmin`); this is a UX gate, not a security boundary.
+ * `AuthContext.isAdmin`) as a UX convenience that hides the button from
+ * non-admins; the real security boundary is server-side — GET
+ * /api/events/pending and POST /api/events/moderate both require an admin
+ * session via `requireAdmin` (see netlify/functions/lib/session.mjs).
  */
 
+import { useState, useEffect } from 'react';
 import EventStore from '../store/EventStore.js';
+import { THREADS_URL_RE as URL_RE } from '../../shared/eventFields.mjs';
 import { MeetupCard, Sheet, hexA } from './ui.jsx';
 import { IconCheck, IconClose, IconClock, IconShield } from './icons.jsx';
-
-const URL_RE = /^https?:\/\/(www\.)?threads\.(com|net)\//i;
 
 /**
  * Formats a millisecond timestamp as a short Finnish relative-time string.
@@ -33,7 +36,7 @@ function relTime(ts) {
  * + relative submitted-time + Julkaise/Hylkää actions.
  * @param {object} props - Props: m (meetup), t (card theme), onApprove, onReject.
  */
-function AdminCard({ m, t, onApprove, onReject }) {
+function AdminCard({ m, t, onApprove, onReject, busy }) {
   const validUrl = URL_RE.test(String(m.url ?? ''));
   const ago = relTime(m.submitted);
 
@@ -88,9 +91,10 @@ function AdminCard({ m, t, onApprove, onReject }) {
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={onReject}
+            disabled={busy}
             style={{
               all: 'unset',
-              cursor: 'pointer',
+              cursor: busy ? 'default' : 'pointer',
               boxSizing: 'border-box',
               padding: '11px 18px',
               borderRadius: t.radiusPill,
@@ -102,15 +106,17 @@ function AdminCard({ m, t, onApprove, onReject }) {
               alignItems: 'center',
               gap: 6,
               fontFamily: 'inherit',
+              opacity: busy ? 0.5 : 1,
             }}
           >
             <IconClose size={15} sw={2.2} /> Hylkää
           </button>
           <button
             onClick={onApprove}
+            disabled={busy}
             style={{
               all: 'unset',
-              cursor: 'pointer',
+              cursor: busy ? 'default' : 'pointer',
               boxSizing: 'border-box',
               flex: 1,
               textAlign: 'center',
@@ -125,6 +131,7 @@ function AdminCard({ m, t, onApprove, onReject }) {
               justifyContent: 'center',
               gap: 6,
               fontFamily: 'inherit',
+              opacity: busy ? 0.5 : 1,
             }}
           >
             <IconCheck size={16} sw={2.4} /> Julkaise
@@ -142,15 +149,59 @@ function AdminCard({ m, t, onApprove, onReject }) {
  */
 export function AdminInbox({ t, open, onClose, refresh }) {
   const tc = t.card;
-  const pending = EventStore.pending();
+  const [pending, setPending] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [pendingActionId, setPendingActionId] = useState(null);
 
-  function handleApprove(id) {
-    EventStore.approve(id);
+  // Refetch the queue whenever the sheet opens — an approve/reject by another
+  // admin elsewhere is now visible here too, since the queue is server-side.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    setActionError(null);
+    EventStore.pending().then((r) => {
+      if (cancelled) return;
+      setLoading(false);
+      // A failed fetch must not render identically to a genuinely-empty
+      // queue — an admin needs to know pending items may exist but
+      // couldn't be loaded, not see "Kaikki tarkistettu" for a broken fetch.
+      if (r.ok) {
+        setPending(r.events);
+      } else {
+        setPending([]);
+        setActionError(r.error);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  async function handleApprove(id) {
+    setPendingActionId(id);
+    setActionError(null);
+    const result = await EventStore.approve(id);
+    setPendingActionId(null);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    setPending((p) => p.filter((m) => m.id !== id));
     refresh?.();
   }
 
-  function handleReject(id) {
-    EventStore.reject(id);
+  async function handleReject(id) {
+    setPendingActionId(id);
+    setActionError(null);
+    const result = await EventStore.reject(id);
+    setPendingActionId(null);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    setPending((p) => p.filter((m) => m.id !== id));
     refresh?.();
   }
 
@@ -194,9 +245,11 @@ export function AdminInbox({ t, open, onClose, refresh }) {
               Ylläpito · Tarkistus
             </div>
             <div style={{ fontSize: 11.5, color: tc.inkSoft }}>
-              {pending.length
-                ? `${pending.length} miittiä odottaa julkaisua`
-                : 'Ei tarkistettavia miittejä'}
+              {loading
+                ? 'Ladataan…'
+                : pending.length
+                  ? `${pending.length} miittiä odottaa julkaisua`
+                  : 'Ei tarkistettavia miittejä'}
             </div>
           </div>
           <button
@@ -221,7 +274,29 @@ export function AdminInbox({ t, open, onClose, refresh }) {
           </button>
         </div>
 
-        {pending.length === 0 ? (
+        {actionError && (
+          <div
+            role="alert"
+            style={{
+              marginTop: 16,
+              padding: '10px 14px',
+              borderRadius: tc.radius,
+              background: hexA('#C2483F', 0.1),
+              border: `1px solid ${hexA('#C2483F', 0.28)}`,
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#C2483F',
+            }}
+          >
+            {actionError}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '52px 24px', color: tc.inkSoft }}>
+            Ladataan…
+          </div>
+        ) : pending.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -274,6 +349,7 @@ export function AdminInbox({ t, open, onClose, refresh }) {
                 key={m.id}
                 m={m}
                 t={tc}
+                busy={pendingActionId === m.id}
                 onApprove={() => handleApprove(m.id)}
                 onReject={() => handleReject(m.id)}
               />

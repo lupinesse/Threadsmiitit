@@ -1,39 +1,24 @@
 /**
- * @fileoverview User-added meetup store backed by localStorage.
+ * @fileoverview User-submitted meetup store — a thin, server-backed client.
  *
- * Seed meetups (from data.js) are read-only. User meetups are stored under
- * a versioned localStorage key, each with a short 4-char ID so they can be
- * edited or removed later via the AI assistant.
+ * All shared event data (submissions, moderation status) now lives in the
+ * server-side Blobs store behind /api/events* (see
+ * netlify/functions/events*.js), not in localStorage. Every network-backed
+ * function here is `async` and resolves to either `{ ok: true, ... }` or
+ * `{ ok: false, error }` — never throws — so callers don't need try/catch
+ * for the common case, mirroring the `Guard` pattern already used in
+ * netlify/functions/lib/session.mjs.
  *
- * Custom cities entered by users are persisted separately and merged back
- * into the CITIES array on module load so all existing city lookups keep
- * working without changes.
+ * Only city lookup/registration (genuinely local — a user's custom city
+ * entry persists per-browser) and the pure `normalize()`/`favKey()` helpers
+ * stay synchronous.
  */
 
 import { CITIES, CATEGORIES, MEETUPS } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
+import { THREADS_URL_RE, normOrg } from '../../shared/eventFields.mjs';
 
-const KEY = 'threadsmiitit_user_events_v1';
 const KEY_CITIES = 'threadsmiitit_custom_cities_v1';
-
-/** Characters to use for generated IDs — excludes visually ambiguous glyphs. */
-const ID_CHARS = 'abcdefghijkmnpqrstuvwxyz23456789';
-
-/**
- * Generates a unique 4-character ID not already in the provided set.
- * @param {Set<string>} [existing] - IDs already in use.
- * @returns {string}
- */
-function genId(existing) {
-  let id;
-  do {
-    id = '';
-    for (let i = 0; i < 4; i++) {
-      id += ID_CHARS[Math.floor(Math.random() * ID_CHARS.length)];
-    }
-  } while (existing && existing.has(id));
-  return id;
-}
 
 // ── Custom cities ───────────────────────────────────────────────────────────
 
@@ -134,63 +119,7 @@ function registerCity(rawName) {
   return key;
 }
 
-// ── User events ─────────────────────────────────────────────────────────────
-
-/**
- * Loads all user-added events from localStorage.
- * @returns {object[]}
- */
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(arr)) return [];
-    // Migration: events saved before moderation existed had no `status` field.
-    // Treat them as already published so nothing already-live disappears.
-    return arr.map((e) => (e && e.status ? e : { ...e, status: 'approved' }));
-  } catch (err) {
-    console.warn('[EventStore] Could not load user events:', err);
-    return [];
-  }
-}
-
-/**
- * Persists the user event list to localStorage.
- * @param {object[]} arr
- */
-function save(arr) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(arr));
-  } catch (err) {
-    console.warn('[EventStore] Could not save user events:', err);
-  }
-}
-
 // ── Normalisation helpers ───────────────────────────────────────────────────
-
-/**
- * Ensures a handle string starts with '@'.
- * @param {string} s
- * @returns {string}
- */
-function tagHandle(s) {
-  s = String(s).trim();
-  if (!s) return '';
-  return s.startsWith('@') ? s : '@' + s.replace(/^@+/, '');
-}
-
-/**
- * Normalises organizer input to an array of @-prefixed handles.
- * @param {string|string[]} o
- * @returns {string[]}
- */
-function normOrg(o) {
-  if (Array.isArray(o)) return o.map(tagHandle).filter(Boolean);
-  if (typeof o === 'string' && o.trim()) {
-    return o.split(/[,/]+/).map(tagHandle).filter(Boolean);
-  }
-  return [];
-}
 
 /**
  * Normalises a date value to YYYY-MM-DD.
@@ -242,7 +171,11 @@ function resolveCat(c) {
 }
 
 /**
- * Validates and normalises a partial event object from the assistant or form.
+ * Validates and normalises a partial event object from the assistant or form
+ * before it's sent to the server. The server independently re-validates the
+ * shape of whatever it receives (see netlify/functions/lib/eventNormalize.mjs)
+ * — this local pass exists so city/category free text gets resolved against
+ * the full lookup tables the server doesn't bundle.
  * @param {object} p - Partial event fields.
  * @returns {object} Normalised event fields.
  */
@@ -254,177 +187,157 @@ function normalize(p) {
     cat: resolveCat(p.cat ?? p.category),
     org: normOrg(p.org ?? p.organizer),
     area: p.area ? String(p.area).trim().slice(0, 40) : undefined,
-    url:
-      p.url && /^https?:\/\/(www\.)?threads\.(com|net)\//i.test(String(p.url).trim())
-        ? String(p.url).trim()
-        : '',
-    ...(p.addedBy ? { addedBy: p.addedBy } : {}),
+    url: p.url && THREADS_URL_RE.test(String(p.url).trim()) ? String(p.url).trim() : '',
   };
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
+// ── Server-backed API ───────────────────────────────────────────────────────
 
 /**
- * Adds a new user event and persists it. New submissions start as `pending`
- * — an admin must approve them before they appear in the public feed.
- *
- * Anonymous submissions are rejected: `partial.addedBy` must identify a
- * logged-in Threads user. Callers (the form, the chat assistant) must check
- * for a logged-in user themselves so they can show a friendly prompt instead
- * of hitting this error.
- * @param {object} partial - Partial event fields (will be normalised).
- * @returns {object} The saved event with an assigned `id`.
- * @throws {Error} If `partial.addedBy.username` is missing.
+ * Issues a fetch against an /api/events* endpoint, translating network and
+ * non-2xx failures into a `{ ok: false, error }` result instead of throwing.
+ * @param {string} url
+ * @param {RequestInit} [opts]
+ * @returns {Promise<object>} `{ok: true, ...body}` on success, `{ok: false, error: string}` on failure.
  */
-function add(partial) {
-  if (!partial?.addedBy?.username) {
-    throw new Error('EventStore.add: refusing anonymous submission — addedBy.username is required');
+async function apiFetch(url, opts = {}) {
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'same-origin', ...opts });
+  } catch (err) {
+    console.warn('[EventStore] Network error:', err);
+    return { ok: false, error: 'Verkkovirhe. Yritä uudelleen.' };
   }
-  const arr = load();
-  const ids = new Set(arr.map((e) => e.id).concat(MEETUPS.map((m) => m.id).filter(Boolean)));
-  const ev = {
-    id: genId(ids),
-    user: true,
-    status: 'pending',
-    submitted: Date.now(),
-    ...normalize(partial),
-  };
-  arr.push(ev);
-  save(arr);
-  return ev;
-}
 
-/**
- * Edits an existing user event by ID and persists the change. Preserves the
- * event's `status`, `submitted` timestamp, and `addedBy` — except that
- * editing a previously-rejected event resets it to `pending` for re-review.
- * @param {string} id - 4-char event ID.
- * @param {object} patch - Fields to update (will be merged and normalised).
- * @returns {object|null} The updated event, or null if the ID was not found.
- */
-function edit(id, patch) {
-  const arr = load();
-  const i = arr.findIndex((e) => e.id === id);
-  if (i < 0) return null;
-  const merged = { ...arr[i], ...normalize({ ...arr[i], ...patch }) };
-  merged.id = arr[i].id;
-  merged.user = true;
-  merged.submitted = arr[i].submitted;
-  if (arr[i].status === 'rejected') {
-    merged.status = 'pending';
-    delete merged.reviewedAt;
-    delete merged.rejectReason;
-  } else {
-    merged.status = arr[i].status ?? 'pending';
+  if (!res.ok) {
+    let error = `Pyyntö epäonnistui (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.error) error = body.error;
+    } catch {
+      // Non-JSON error body (e.g. a bare 401/405) — keep the generic message.
+    }
+    return { ok: false, error };
   }
-  arr[i] = merged;
-  save(arr);
-  return merged;
+
+  if (res.status === 204) return { ok: true };
+  try {
+    const body = await res.json();
+    return { ok: true, ...body };
+  } catch (err) {
+    console.warn('[EventStore] Malformed response body:', err);
+    return { ok: false, error: 'Virheellinen vastaus palvelimelta.' };
+  }
+}
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+/**
+ * Returns every meetup visible in the public feed — seed events followed by
+ * approved user events, plus the current user's own pending submissions.
+ * The server derives "current user" from the verified session cookie, not
+ * from any client-supplied value.
+ * @returns {Promise<{ok:true, events:object[]}|{ok:false, error:string}>}
+ */
+async function all() {
+  const result = await apiFetch('/api/events');
+  if (!result.ok) return result;
+  return { ok: true, events: MEETUPS.concat(result.events) };
 }
 
 /**
- * Removes a user event by ID.
- * @param {string} id
- * @returns {boolean} True if the event was found and removed.
+ * Returns every event submitted by the signed-in user, regardless of
+ * moderation status — used by the "Miittini" profile section.
+ * @param {string} [username] - The signed-in user's Threads handle (no `@`).
+ * @returns {Promise<{ok:true, events:object[]}|{ok:false, error:string}>}
  */
-function remove(id) {
-  const arr = load();
-  const i = arr.findIndex((e) => e.id === id);
-  if (i < 0) return false;
-  arr.splice(i, 1);
-  save(arr);
-  return true;
-}
-
-/**
- * Finds a user event by ID without removing it.
- * @param {string} id
- * @returns {object|null}
- */
-function find(id) {
-  return load().find((e) => e.id === id) ?? null;
-}
-
-/**
- * Returns all meetups visible in the public feed — seed events followed by
- * approved user events, plus the current user's own pending submissions
- * (shown to their submitter, flagged, while awaiting review). Rejected
- * events and other users' pending submissions are never included here; use
- * `ownedBy()` to see a user's full submission history regardless of status.
- * @param {string} [currentUsername] - The signed-in user's Threads handle (no `@`).
- * @returns {object[]}
- */
-function all(currentUsername) {
-  const visible = load().filter(
-    (e) =>
-      e.status === 'approved' || (e.status === 'pending' && e.addedBy?.username === currentUsername)
-  );
-  return MEETUPS.concat(visible);
-}
-
-/**
- * Returns every event submitted by a given Threads handle, regardless of
- * moderation status — used by the "Miittini" profile section so a user can
- * see their own pending/rejected submissions alongside published ones.
- * @param {string} username - Threads handle (no `@`).
- * @returns {object[]}
- */
-function ownedBy(username) {
-  if (!username) return [];
-  return load().filter((e) => e.addedBy?.username === username);
+async function ownedBy(username) {
+  if (!username) return { ok: true, events: [] };
+  return apiFetch('/api/events/mine');
 }
 
 /**
  * Returns all pending submissions across every user, oldest first — the
- * admin moderation queue.
- * @returns {object[]}
+ * admin moderation queue. Requires an admin session.
+ * @returns {Promise<{ok:true, events:object[]}|{ok:false, error:string}>}
  */
-function pending() {
-  return load()
-    .filter((e) => e.status === 'pending')
-    .sort((a, b) => (a.submitted ?? 0) - (b.submitted ?? 0));
+async function pending() {
+  return apiFetch('/api/events/pending');
 }
 
 /**
- * Sets an event's moderation status and records the review time.
+ * Submits a new event. Requires the caller to be signed in — the server
+ * derives the submission's owner from the session and always starts it as
+ * `pending`.
+ * @param {object} partial - Partial event fields (will be normalised locally, then re-validated server-side).
+ * @returns {Promise<{ok:true, event:object}|{ok:false, error:string}>}
+ */
+async function add(partial) {
+  return apiFetch('/api/events', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(normalize(partial)),
+  });
+}
+
+/**
+ * Edits an existing event the caller owns. Editing a previously-rejected
+ * event resets it to `pending` for re-review.
+ * @param {string} id - 4-char event ID.
+ * @param {object} patch - Fields to update (will be normalised locally, then re-validated server-side).
+ * @returns {Promise<{ok:true, event:object}|{ok:false, error:string}>}
+ */
+async function edit(id, patch) {
+  return apiFetch(`/api/events?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(normalize(patch)),
+  });
+}
+
+/**
+ * Removes an event the caller owns.
  * @param {string} id
- * @param {'approved'|'rejected'} status
- * @param {object} [extra] - Additional fields to merge in (e.g. rejectReason).
- * @returns {object|null} The updated event, or null if the ID was not found.
+ * @returns {Promise<{ok:true}|{ok:false, error:string}>}
  */
-function setStatus(id, status, extra) {
-  const arr = load();
-  const i = arr.findIndex((e) => e.id === id);
-  if (i < 0) return null;
-  arr[i] = { ...arr[i], status, reviewedAt: Date.now(), ...(extra ?? {}) };
-  save(arr);
-  return arr[i];
+async function remove(id) {
+  return apiFetch(`/api/events?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /**
- * Approves a pending submission, publishing it to the public feed.
+ * Approves a pending submission, publishing it to the public feed. Requires
+ * an admin session.
  * @param {string} id
- * @returns {object|null} The updated event, or null if the ID was not found.
+ * @returns {Promise<{ok:true, event:object}|{ok:false, error:string}>}
  */
-function approve(id) {
-  return setStatus(id, 'approved');
+async function approve(id) {
+  return apiFetch(`/api/events/moderate?id=${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ action: 'approve' }),
+  });
 }
 
 /**
- * Rejects a pending submission, hiding it from the public feed. The
- * submitter can still see it (as rejected) via `ownedBy()`.
+ * Rejects a pending submission, hiding it from the public feed. Requires an
+ * admin session. The submitter can still see it (as rejected) via
+ * `ownedBy()`.
  * @param {string} id
  * @param {string} [reason] - Optional reason shown to the submitter, capped at 120 chars.
- * @returns {object|null} The updated event, or null if the ID was not found.
+ * @returns {Promise<{ok:true, event:object}|{ok:false, error:string}>}
  */
-function reject(id, reason) {
-  return setStatus(id, 'rejected', reason ? { rejectReason: String(reason).slice(0, 120) } : {});
+async function reject(id, reason) {
+  return apiFetch(`/api/events/moderate?id=${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ action: 'reject', reason }),
+  });
 }
 
 /**
  * Returns a stable, unique key for a meetup suitable for use in the
- * favourites Set. User-added meetups use their generated `id`; seed
- * meetups (which have no id) use a `title|date` composite.
+ * favourites Set. User-added meetups use their assigned `id`; seed meetups
+ * (which have no id) use a `title|date` composite.
  * @param {object} m
  * @returns {string}
  */
@@ -438,19 +351,15 @@ loadCities().forEach((c) => {
 });
 
 const EventStore = {
-  load,
-  save,
-  add,
-  edit,
-  remove,
-  find,
   all,
   ownedBy,
   pending,
+  add,
+  edit,
+  remove,
   approve,
   reject,
   favKey,
-  genId,
   normalize,
   resolveCity,
   resolveCat,
