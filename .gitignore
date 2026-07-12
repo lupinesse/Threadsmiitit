@@ -32,6 +32,9 @@ src/js/00-config.local.js
 .env.*
 !.env.example
 
+# GitHub App private keys (e.g. chatgpt-reviewer.pem, claude-reviewer.pem) — never commit
+*.pem
+
 # Claude Code session data — ignore local state but track shared skills
 .claude/*
 !.claude/skills/
