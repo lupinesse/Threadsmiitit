@@ -287,7 +287,8 @@ export function ScreenMiitit({
           display: 'flex',
           gap: 8,
           overflowX: 'auto',
-          padding: '0 20px 14px',
+          // Top padding reserves room for the :focus-visible ring so overflow-x:auto doesn't clip it.
+          padding: '4px 20px 14px',
           scrollbarWidth: 'none',
         }}
       >

@@ -144,6 +144,7 @@ function CityAutocomplete({ t, value, onChange }) {
             border: `1px solid ${t.line}`,
             background: t.surface,
             overflow: 'hidden',
+            padding: 4, // reserve room for the :focus-visible ring so overflow:hidden doesn't clip it
             boxShadow: '0 8px 24px -10px rgba(0,0,0,0.5)',
           }}
         >
