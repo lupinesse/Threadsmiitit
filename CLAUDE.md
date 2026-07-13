@@ -13,6 +13,48 @@ with these rules, follow these rules and flag the conflict.
 
 ---
 
+## Concurrent sessions — always use an isolated git worktree
+
+Multiple Claude Code sessions run against this repo at the same time, and
+history shows they collide when they share the single main checkout: one
+session's `git checkout`/`git stash` silently discards or hides another
+session's uncommitted work, with no error and no recovery path (see issues
+#67, #68, #70).
+
+**Rule: never run `git checkout <branch>` or `git switch` directly in the
+main working directory if any git operation you're about to run could affect
+files another session might be mid-edit on.** Instead, at the start of any
+task that involves creating a branch or switching branches, create an
+isolated worktree and do all work there:
+
+```bash
+git fetch origin main --quiet
+git worktree add .claude/worktrees/<branch-name> -b <type>/<branch-name> origin/main
+cd .claude/worktrees/<branch-name>
+# ... implement, build, lint, test, commit, push from here ...
+```
+
+When the task is done (PR merged, or work abandoned):
+
+```bash
+cd <repo-root>
+git worktree remove .claude/worktrees/<branch-name> --force
+git branch -D <type>/<branch-name>   # only if not already deleted by --delete-branch on merge
+```
+
+Exceptions — brief, read-only commands in the shared root are fine (`git
+status`, `git log`, `git diff <ref>..<ref>`, `gh` calls that don't touch the
+working tree, reading files). The hazard is specifically switching HEAD or
+mutating the index/working tree of the shared checkout.
+
+If you inherit an already-dirty shared working tree from a previous
+convention (uncommitted changes, an unfamiliar branch checked out), do not
+assume it's abandoned — it may belong to another live session. Leave it
+alone, work in your own worktree, and mention what you found to the user
+rather than stashing or discarding it yourself.
+
+---
+
 ## Rules — apply to everything you create
 
 ### Modular code
@@ -123,11 +165,14 @@ You write all the code in this project. The user reviews your work through
 pull requests. Follow these steps for every task that involves code changes.
 Never push directly to `main`.
 
-### Step 1 — Create a branch
+### Step 1 — Create a branch in an isolated worktree
+Follow [Concurrent sessions — always use an isolated git worktree](#concurrent-sessions--always-use-an-isolated-git-worktree)
+above — do not `git checkout -b` in the shared main working directory.
 ```bash
-git checkout -b fix/issue-N-description    # bug fixes and QA items
-git checkout -b feat/description           # new features
-git checkout -b docs/description           # documentation only
+git worktree add .claude/worktrees/issue-N-description -b fix/issue-N-description origin/main   # bug fixes and QA items
+git worktree add .claude/worktrees/feature-description  -b feat/feature-description origin/main   # new features
+git worktree add .claude/worktrees/docs-description     -b docs/docs-description    origin/main   # documentation only
+cd .claude/worktrees/<branch-name>
 ```
 
 ### Step 2 — Implement, build, lint, test
@@ -166,7 +211,11 @@ Do NOT run `gh pr merge` until the user explicitly says to merge.
 ### Step 7 — Merge on instruction
 ```bash
 gh pr merge <N> --squash --delete-branch
-git checkout main && git pull
+```
+Then clean up the isolated worktree from Step 1 (from the repo root, not
+from inside the worktree being removed):
+```bash
+git worktree remove .claude/worktrees/<branch-name> --force
 ```
 
 ---
