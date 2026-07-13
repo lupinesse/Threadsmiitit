@@ -8,7 +8,7 @@ import * as Sentry from '@sentry/react';
  * VITE_SENTRY_DSN is unset, so local dev, CI, and PR previews never need one.
  *
  * @param {ImportMetaEnv} [env] - Injectable for tests; defaults to import.meta.env.
- * @param {typeof Sentry} [sentryClient] - Injectable for tests; defaults to the real SDK.
+ * @param {object} [sentryClient] - Injectable for tests; defaults to the real @sentry/react SDK.
  * @returns {void}
  */
 export function initSentry(env = import.meta.env, sentryClient = Sentry) {

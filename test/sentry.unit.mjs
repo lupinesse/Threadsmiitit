@@ -64,14 +64,34 @@ describe('withSentry', () => {
     const wrapped = withSentry(handler, client);
     const consoleError = mock.method(console, 'error', () => {});
 
-    const response = await wrapped({});
+    const response = await wrapped({ method: 'POST', url: 'https://example.test/api/events?id=1' });
 
     assert.equal(response.status, 500);
     assert.equal(response.headers.get('Content-Type'), 'application/json');
     assert.deepEqual(await response.json(), { error: 'Internal server error' });
     assert.equal(client.captureException.mock.callCount(), 1);
     assert.equal(client.captureException.mock.calls[0].arguments[0], boom);
+    assert.deepEqual(client.captureException.mock.calls[0].arguments[1], {
+      contexts: { request: { method: 'POST', path: '/api/events' } },
+    });
     assert.equal(client.flush.mock.callCount(), 1);
+    consoleError.mock.restore();
+  });
+
+  it('does not throw when the request has no url (e.g. a malformed test double)', async () => {
+    const client = createFakeSentryClient();
+    const handler = async () => {
+      throw new Error('boom');
+    };
+    const wrapped = withSentry(handler, client);
+    const consoleError = mock.method(console, 'error', () => {});
+
+    const response = await wrapped({});
+
+    assert.equal(response.status, 500);
+    assert.deepEqual(client.captureException.mock.calls[0].arguments[1], {
+      contexts: { request: { method: null, path: null } },
+    });
     consoleError.mock.restore();
   });
 
@@ -89,10 +109,10 @@ describe('withSentry', () => {
     const wrapped = withSentry(handler, client);
     const consoleError = mock.method(console, 'error', () => {});
 
-    await wrapped({});
+    await wrapped({ method: 'GET', url: 'https://example.test/api/events' });
 
     assert.equal(consoleError.mock.callCount(), 1);
-    assert.equal(consoleError.mock.calls[0].arguments[1], boom);
+    assert.equal(consoleError.mock.calls[0].arguments[2], boom);
     consoleError.mock.restore();
   });
 
