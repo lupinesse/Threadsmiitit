@@ -36,6 +36,11 @@ export function withSentry(handler, sentryClient = Sentry) {
     try {
       return await handler(req);
     } catch (error) {
+      // Always log to the function's own console output — Sentry.captureException
+      // is a silent no-op when SENTRY_DSN is unset (the default), and Netlify's
+      // own crash logging is bypassed by this try/catch, so this is the only
+      // place the error is guaranteed to be visible.
+      console.error('[sentry] unhandled error in Netlify Function', error);
       sentryClient.captureException(error);
       await sentryClient.flush(2000);
       return new Response(JSON.stringify({ error: 'Internal server error' }), {

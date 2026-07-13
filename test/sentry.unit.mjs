@@ -62,6 +62,7 @@ describe('withSentry', () => {
       throw boom;
     };
     const wrapped = withSentry(handler, client);
+    const consoleError = mock.method(console, 'error', () => {});
 
     const response = await wrapped({});
 
@@ -71,6 +72,28 @@ describe('withSentry', () => {
     assert.equal(client.captureException.mock.callCount(), 1);
     assert.equal(client.captureException.mock.calls[0].arguments[0], boom);
     assert.equal(client.flush.mock.callCount(), 1);
+    consoleError.mock.restore();
+  });
+
+  it('logs the error to the console even when Sentry is not configured (SENTRY_DSN unset)', async () => {
+    // A no-op Sentry client is what @sentry/node behaves like when init() was
+    // never called — this asserts the error is still visible somewhere.
+    const client = {
+      captureException: mock.fn(),
+      flush: mock.fn(async () => true),
+    };
+    const boom = new Error('boom without a DSN');
+    const handler = async () => {
+      throw boom;
+    };
+    const wrapped = withSentry(handler, client);
+    const consoleError = mock.method(console, 'error', () => {});
+
+    await wrapped({});
+
+    assert.equal(consoleError.mock.callCount(), 1);
+    assert.equal(consoleError.mock.calls[0].arguments[1], boom);
+    consoleError.mock.restore();
   });
 
   it('reports a synchronously thrown error, not just rejected promises', async () => {
