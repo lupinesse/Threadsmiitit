@@ -9,7 +9,7 @@ import { Sentry } from '../lib/sentry.js';
 
 /**
  * @param {object} props
- * @param {import('react').ReactNode} props.children
+ * @param {React.ReactNode} props.children
  */
 export function AppErrorBoundary({ children }) {
   return (
