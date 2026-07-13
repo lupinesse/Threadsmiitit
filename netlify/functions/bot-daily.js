@@ -31,7 +31,8 @@ initSentry();
  * @param {boolean} [deps.dryRun]
  * @param {typeof fetch} [deps.fetchImpl]
  * @param {() => number} [deps.now] - Injectable clock for tests.
- * @param {string} [deps.siteUrl] - Defaults to Netlify's own `URL` env var.
+ * @param {string} [deps.siteUrl] - Defaults to Netlify's own `URL` env var, falling back to the
+ *   production domain if that's ever unset (mirrors `auth-callback.js`'s convention).
  * @returns {(req: Request) => Promise<Response>}
  */
 export function createHandler({
@@ -41,7 +42,7 @@ export function createHandler({
   dryRun = BOT_DRY_RUN,
   fetchImpl = fetch,
   now = Date.now,
-  siteUrl = process.env.URL,
+  siteUrl = process.env.URL || 'https://threadsmiitit.netlify.app',
 } = {}) {
   return async function handler(_req) {
     if (!botEnabled) {
