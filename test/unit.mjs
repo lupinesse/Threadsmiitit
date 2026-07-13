@@ -1108,6 +1108,18 @@ describe('isWithinRateLimit', () => {
       false
     );
   });
+
+  it('fails open (allows the request) if the Blobs store errors', async () => {
+    const store = {
+      async get() {
+        throw new Error('Blobs read failed');
+      },
+      async set() {
+        throw new Error('Blobs write failed');
+      },
+    };
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, store }), true);
+  });
 });
 
 // ── anthropic-proxy ──────────────────────────────────────────────────────────

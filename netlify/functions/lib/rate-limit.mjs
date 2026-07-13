@@ -17,6 +17,11 @@
  * tradeoff for a backstop layer — the primary limit is the Netlify edge
  * rule — and it only ever under-limits by a small margin, never
  * over-limits a legitimate client.
+ *
+ * If the Blobs store itself errors (outage, cold-start misconfiguration),
+ * this fails open (allows the request) rather than throwing: a backstop
+ * layer's own storage hiccup must not take down the primary feature it's
+ * merely defending, so an unlimited request is preferable to a 500.
  */
 
 import { getStore } from '@netlify/blobs';
@@ -80,16 +85,25 @@ function recordHit(hits, now, windowMs, max) {
  * @param {number} [options.windowMs] - Injectable window size, for testing.
  * @param {number} [options.max] - Injectable request cap, for testing.
  * @param {BlobStoreLike} [options.store] - Injectable store, for testing.
- * @returns {Promise<boolean>} True if the request is allowed under the limit.
+ * @returns {Promise<boolean>} True if the request is allowed under the
+ *   limit — also true (fails open) if the store itself errors.
  */
 export async function isWithinRateLimit(
   key,
   { now = Date.now(), windowMs = RATE_LIMIT_WINDOW_MS, max = RATE_LIMIT_MAX_REQUESTS, store } = {}
 ) {
   const blobStore = resolveStore(store);
-  const raw = await blobStore.get(key);
-  const existingHits = raw ? JSON.parse(raw) : [];
-  const { allowed, hits } = recordHit(existingHits, now, windowMs, max);
-  await blobStore.set(key, JSON.stringify(hits));
-  return allowed;
+  try {
+    const raw = await blobStore.get(key);
+    const existingHits = raw ? JSON.parse(raw) : [];
+    const { allowed, hits } = recordHit(existingHits, now, windowMs, max);
+    await blobStore.set(key, JSON.stringify(hits));
+    return allowed;
+  } catch (error) {
+    console.error('[rate-limit] Blobs store error — failing open for this request', {
+      key,
+      error,
+    });
+    return true;
+  }
 }
