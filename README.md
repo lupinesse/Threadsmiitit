@@ -66,6 +66,10 @@ The key is read **server-side** only — never exposed in the browser bundle. In
 
 The `netlify/functions/auth-*.js` functions implement Threads (Meta) OAuth login. A successful login mints a signed, httpOnly `tm_session` cookie (see `netlify/functions/lib/session.mjs`); the client learns who is signed in via `GET /api/auth/whoami`, never by reading the cookie itself. See [.env.example](.env.example) for the full list of environment variables (`THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET`, `THREADS_REDIRECT_URI`, `SESSION_SECRET`, `ALLOWED_ORIGIN`) needed to enable it locally.
 
+#### Error monitoring (optional)
+
+Set `VITE_SENTRY_DSN` (browser) and/or `SENTRY_DSN` (Netlify Functions) to report uncaught errors to [Sentry](https://sentry.io). Both are unset by default — the app and functions run exactly as before with no external calls. See `src/lib/sentry.js` and `netlify/functions/lib/sentry.mjs`.
+
 ### Build
 
 ```bash
