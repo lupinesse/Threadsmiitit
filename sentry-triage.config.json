@@ -1,0 +1,3 @@
+{
+  "noisePatterns": ["^sentry-smoke-test\\b"]
+}

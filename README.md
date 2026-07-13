@@ -70,6 +70,15 @@ The `netlify/functions/auth-*.js` functions implement Threads (Meta) OAuth login
 
 Set `VITE_SENTRY_DSN` (browser) and/or `SENTRY_DSN` (Netlify Functions) to report uncaught errors to [Sentry](https://sentry.io). Both are unset by default — the app and functions run exactly as before with no external calls. See `src/lib/sentry.js` and `netlify/functions/lib/sentry.mjs`.
 
+##### Sentry triage automation
+
+`.github/workflows/sentry-triage.yml` runs `.github/scripts/sentry-triage.mjs` daily (and on demand via `workflow_dispatch`). It lists every unresolved Sentry issue and:
+
+- **Resolves it automatically** if the title matches a pattern in [sentry-triage.config.json](sentry-triage.config.json) — for known noise like a deliberately-thrown smoke-test error, no code change is needed.
+- **Lists it in a single tracking GitHub issue** (label `sentry-triage`, kept up to date rather than duplicated per run) otherwise. The script never writes a fix itself — pick an item from that issue, branch and fix it through the normal [PR workflow](CLAUDE.md#pr-workflow--mandatory-for-every-code-change), then resolve the Sentry issue by hand once the fix has shipped.
+
+Requires the `SENTRY_AUTH_TOKEN` secret (an internal integration token with Issues: Read & Write) and `SENTRY_ORG`/`SENTRY_PROJECT` repository variables. Run it locally with `npm run sentry:triage` (needs those same values plus `GITHUB_TOKEN` — e.g. `export GITHUB_TOKEN=$(gh auth token)`); see [.env.example](.env.example).
+
 ### Build
 
 ```bash

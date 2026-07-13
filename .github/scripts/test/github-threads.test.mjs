@@ -17,6 +17,9 @@ import {
   fetchAllIssueComments,
   formatThreadsForPrompt,
   upsertIssueComment,
+  findOpenIssueByMarker,
+  upsertTrackingIssue,
+  closeIssueWithComment,
 } from '../lib/github-threads.mjs';
 
 // ─────────────────────────── helpers ───────────────────────────
@@ -342,5 +345,118 @@ describe('upsertIssueComment', () => {
 
     assert.strictEqual(result.updated, false);
     assert.deepStrictEqual(result.comment, created);
+  });
+});
+
+// ─────────────────────────── findOpenIssueByMarker ───────────────────────────
+
+describe('findOpenIssueByMarker', () => {
+  const ctx = { token: 'tok', owner: 'acme', repo: 'app', marker: '<!-- marker -->' };
+
+  test('searches with the marker and returns the first match', async (t) => {
+    const found = { number: 5, title: 'Tracking issue' };
+    const fetchMock = t.mock.method(globalThis, 'fetch', async (url) => {
+      assert.ok(url.startsWith('https://api.github.com/search/issues?q='));
+      assert.ok(decodeURIComponent(url).includes('repo:acme/app'));
+      assert.ok(decodeURIComponent(url).includes('<!-- marker -->'));
+      return makeResponse({ items: [found] });
+    });
+
+    const result = await findOpenIssueByMarker(ctx);
+
+    assert.strictEqual(fetchMock.mock.calls.length, 1);
+    assert.deepStrictEqual(result, found);
+  });
+
+  test('returns null when no issue matches', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => makeResponse({ items: [] }));
+    assert.strictEqual(await findOpenIssueByMarker(ctx), null);
+  });
+
+  test('throws when the search API fails', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => makeResponse('bad query', 422));
+    await assert.rejects(findOpenIssueByMarker(ctx), /422/);
+  });
+});
+
+// ─────────────────────────── upsertTrackingIssue ───────────────────────────
+
+describe('upsertTrackingIssue', () => {
+  const ctx = {
+    token: 'tok',
+    owner: 'acme',
+    repo: 'app',
+    marker: '<!-- marker -->',
+    title: 'New title',
+    body: '<!-- marker -->\nbody',
+    labels: ['sentry-triage'],
+  };
+
+  test('PATCHes the existing issue when the marker search finds one', async (t) => {
+    const existing = { number: 5 };
+    const patched = { number: 5, title: 'New title' };
+
+    t.mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (url.includes('/search/issues')) return makeResponse({ items: [existing] });
+      assert.strictEqual(url, 'https://api.github.com/repos/acme/app/issues/5');
+      assert.strictEqual(opts.method, 'PATCH');
+      assert.deepStrictEqual(JSON.parse(opts.body), { title: ctx.title, body: ctx.body });
+      return makeResponse(patched);
+    });
+
+    const result = await upsertTrackingIssue(ctx);
+    assert.strictEqual(result.created, false);
+    assert.deepStrictEqual(result.issue, patched);
+  });
+
+  test('POSTs a new issue with labels when no marker match is found', async (t) => {
+    const created = { number: 9, title: 'New title' };
+
+    t.mock.method(globalThis, 'fetch', async (url, opts) => {
+      if (url.includes('/search/issues')) return makeResponse({ items: [] });
+      assert.strictEqual(url, 'https://api.github.com/repos/acme/app/issues');
+      assert.strictEqual(opts.method, 'POST');
+      assert.deepStrictEqual(JSON.parse(opts.body), {
+        title: ctx.title,
+        body: ctx.body,
+        labels: ctx.labels,
+      });
+      return makeResponse(created, 201);
+    });
+
+    const result = await upsertTrackingIssue(ctx);
+    assert.strictEqual(result.created, true);
+    assert.deepStrictEqual(result.issue, created);
+  });
+});
+
+// ─────────────────────────── closeIssueWithComment ───────────────────────────
+
+describe('closeIssueWithComment', () => {
+  const ctx = { token: 'tok', owner: 'acme', repo: 'app', issueNumber: 5, comment: 'All clear.' };
+
+  test('posts the comment then closes the issue', async (t) => {
+    const calls = [];
+    t.mock.method(globalThis, 'fetch', async (url, opts) => {
+      calls.push({ url, opts });
+      if (opts.method === 'POST') return makeResponse({ id: 1, body: ctx.comment });
+      return makeResponse({ number: 5, state: 'closed' });
+    });
+
+    const result = await closeIssueWithComment(ctx);
+
+    assert.strictEqual(calls.length, 2);
+    assert.strictEqual(calls[0].url, 'https://api.github.com/repos/acme/app/issues/5/comments');
+    assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { body: ctx.comment });
+    assert.strictEqual(calls[1].url, 'https://api.github.com/repos/acme/app/issues/5');
+    assert.strictEqual(calls[1].opts.method, 'PATCH');
+    assert.deepStrictEqual(JSON.parse(calls[1].opts.body), { state: 'closed' });
+    assert.strictEqual(result.state, 'closed');
+  });
+
+  test('throws if posting the comment fails and never attempts to close', async (t) => {
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => makeResponse('nope', 403));
+    await assert.rejects(closeIssueWithComment(ctx), /403/);
+    assert.strictEqual(fetchMock.mock.calls.length, 1);
   });
 });
