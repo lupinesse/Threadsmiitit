@@ -456,6 +456,12 @@ export function DetailRow({ icon, label, sub, t }) {
  * @param {boolean} [props.showAddedBy] - Whether to render the "Lisätty sovelluksessa" section
  *   showing who submitted the meetup (`m.addedBy`), as opposed to who is organising it (`m.org`).
  *   Submitter identity is moderation-only information — only admin views should pass `true`.
+ * @param {boolean} [props.canCancel] - Whether to render a "Peruuta miitti" action for an
+ *   approved meetup (hidden once already `cancelled`). Only an admin viewing someone else's
+ *   meetup uses this from the shared detail sheet — the owner's own cancel action lives in
+ *   `ProfileSheet`'s Miittini list instead.
+ * @param {Function} [props.onCancel] - Called when the cancel action is pressed; required if
+ *   `canCancel` is `true`.
  */
 export function MeetupDetail({
   m,
@@ -933,7 +939,7 @@ export function ConfirmSheet({
               opacity: busy ? 0.5 : 1,
             }}
           >
-            Peruuta
+            Takaisin
           </button>
           <button
             onClick={onConfirm}
