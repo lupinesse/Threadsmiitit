@@ -8,7 +8,6 @@ abstract: >-
 type: software
 authors:
   - name: lupinesse
-    email: lupinesse@gmail.com
 repository-code: 'https://github.com/lupinesse/Threadsmiitit'
 url: 'https://threadsmiitit.netlify.app/'
 license: MIT
