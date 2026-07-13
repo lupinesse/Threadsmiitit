@@ -1004,6 +1004,54 @@ describe('validatePrompt', () => {
   });
 });
 
+// ── rate-limit ───────────────────────────────────────────────────────────────
+
+import {
+  isWithinRateLimit,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_REQUESTS,
+} from '../netlify/functions/lib/rate-limit.mjs';
+
+describe('isWithinRateLimit', () => {
+  it('allows requests under the limit', () => {
+    const store = new Map();
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0 }), true);
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1 }), true);
+  });
+
+  it('denies once a key reaches its max within the window', () => {
+    const store = new Map();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
+      assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: i }), true);
+    }
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: RATE_LIMIT_MAX_REQUESTS }), false);
+  });
+
+  it('allows again once old hits fall outside the window', () => {
+    const store = new Map();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
+      isWithinRateLimit(store, 'ip1', { now: i });
+    }
+    const afterWindow = RATE_LIMIT_WINDOW_MS + 1;
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: afterWindow }), true);
+  });
+
+  it('tracks separate keys independently', () => {
+    const store = new Map();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
+      isWithinRateLimit(store, 'ip1', { now: i });
+    }
+    assert.strictEqual(isWithinRateLimit(store, 'ip2', { now: 0 }), true);
+  });
+
+  it('respects injected windowMs/max overrides', () => {
+    const store = new Map();
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0, max: 1 }), true);
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1, max: 1 }), false);
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 100, windowMs: 50, max: 1 }), true);
+  });
+});
+
 // ── anthropic-proxy ──────────────────────────────────────────────────────────
 
 import { callAnthropic } from '../netlify/functions/lib/anthropic-proxy.mjs';

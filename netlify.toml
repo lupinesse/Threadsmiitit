@@ -9,10 +9,36 @@
   to = "/index.html"
   status = 200
 
+# Security headers, applied to every response.
+#
+# style-src needs 'unsafe-inline' because components set React
+# `style={{...}}` props directly (theme values are runtime JS, not static
+# CSS) rather than className-based styling, throughout the app. img-src
+# allows any https origin plus data: because user avatarUrl values come
+# from Threads' OAuth profile data, served from unpredictable CDN
+# subdomains that can't be enumerated in advance. connect-src allows
+# Sentry's ingest endpoints for error reporting (a no-op when
+# VITE_SENTRY_DSN/SENTRY_DSN are unset). script-src has no 'unsafe-inline'
+# — index.html's only inline script (a font-loading onload handler) was
+# removed so this bundle-only script-src can stay strict.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
 # Rate limiting for the AI chat proxy (requires Netlify Pro or higher).
 # Denies requests from a single IP that exceed 30 requests per 60 seconds.
 # Verify the exact syntax against https://docs.netlify.com/security/secure-access-to-sites/traffic-rules/
-# before deploying if upgrading from a Starter plan.
+# before deploying if upgrading from a Starter plan. On plans below Pro this
+# edge rule silently doesn't apply — chat.js has its own in-function
+# rate-limit backstop (netlify/functions/lib/rate-limit.mjs) so the endpoint
+# is never fully unlimited, though that backstop is per-instance only (see
+# its module doc comment for the exact tradeoff).
 [[edge_rules]]
   for = { path = "/api/chat" }
   [edge_rules.rate_limit]
