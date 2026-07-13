@@ -583,6 +583,7 @@ export default function App() {
             fav={selected ? favs.has(EventStore.favKey(selected)) : false}
             onFav={() => selected && toggleFav(selected)}
             onClose={() => setSelected(null)}
+            showAddedBy={isAdmin}
           />
         </Sheet>
 

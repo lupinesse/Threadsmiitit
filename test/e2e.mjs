@@ -58,6 +58,7 @@ const APPROVED_EVENT = {
   org: ['@e2e-test'],
   status: 'approved',
   url: '',
+  addedBy: { id: 'u2', username: 'e2e-test', avatarUrl: null, profileUrl: '' },
 };
 
 const ADMIN_USER = {
@@ -115,6 +116,16 @@ describe('End-to-end: browse, open, and favourite a meetup', () => {
     // Opening it shows the detail sheet with a matching heading.
     fireEvent.click(card);
     await screen.findByRole('heading', { name: TEST_TITLE });
+
+    // Regression: a signed-out visitor sees the organiser (shown both in the
+    // list card behind the sheet and in the sheet's own organiser row) but
+    // not who submitted the listing — submitter identity is moderation-only.
+    assert.ok(screen.queryAllByText('@e2e-test').length > 0, 'organiser handle should be visible');
+    assert.equal(
+      screen.queryByText('Lisätty sovelluksessa'),
+      null,
+      'submitter section should be hidden from non-admins'
+    );
 
     // Favouriting toggles the button's accessible pressed state.
     const favButton = screen.getByRole('button', { name: 'Lisää suosikiksi' });
@@ -257,6 +268,13 @@ describe('End-to-end: admin moderation queue', () => {
     fireEvent.click(adminButton);
 
     await screen.findByText('Odottava miitti');
+
+    // Regression: admins reviewing the moderation queue need to see who
+    // submitted each entry, unlike the public card/detail views. '@submitter'
+    // appears twice here — once as the organiser (m.org) and once as the
+    // submitter (m.addedBy, only shown because AdminInbox passes showAddedBy).
+    await waitFor(() => assert.equal(screen.queryAllByText('@submitter').length, 2));
+
     const approveButton = screen.getByRole('button', { name: /Julkaise/ });
     fireEvent.click(approveButton);
 
