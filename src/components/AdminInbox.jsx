@@ -50,7 +50,13 @@ function AdminCard({ m, t, onApprove, onReject, busy }) {
       }}
     >
       <div style={{ pointerEvents: 'none', padding: 6 }}>
-        <MeetupCard t={t} m={{ ...m, status: 'approved' }} fav={false} onClick={() => {}} />
+        <MeetupCard
+          t={t}
+          m={{ ...m, status: 'approved' }}
+          fav={false}
+          onClick={() => {}}
+          showAddedBy
+        />
       </div>
       <div
         style={{
