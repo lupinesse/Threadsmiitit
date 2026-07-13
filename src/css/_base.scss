@@ -55,6 +55,12 @@ body {
   box-shadow: 0 0 0 2px #000 !important;
 }
 
+// Native date-picker icon renders black by default, which is invisible against
+// this app's dark surfaces — invert it to white.
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 // Typing-indicator animation — used by ChatAssistant.
 @keyframes tmblink {
   0%,
