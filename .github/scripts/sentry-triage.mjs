@@ -37,6 +37,7 @@ import {
   resolveIssue,
   classifyIssue,
   formatNeedsFixList,
+  validateNoisePatterns,
 } from './lib/sentry-api.mjs';
 import { upsertTrackingIssue, findOpenIssueByMarker, closeIssueWithComment } from './lib/github-threads.mjs';
 
@@ -67,16 +68,38 @@ const [OWNER, REPO] = must('GITHUB_REPOSITORY').split('/');
 const CONFIG_PATH = process.env.SENTRY_TRIAGE_CONFIG_PATH || 'sentry-triage.config.json';
 
 /**
- * Load the noise-pattern list from the JSON config file.
+ * Load the noise-pattern list from the JSON config file, validating that
+ * it's readable, well-formed, and every pattern compiles as a regex —
+ * so a missing file or a typo'd config surfaces one clear error here
+ * instead of a confusing failure partway through classifying issues.
+ *
  * @param {string} configPath
  * @returns {Promise<string[]>}
+ * @throws {Error} If the file is missing, not valid JSON, missing the
+ *   expected shape, or contains an invalid regex pattern.
  */
 async function loadNoisePatterns(configPath) {
-  const raw = await readFile(configPath, 'utf8');
-  const config = JSON.parse(raw);
-  if (!Array.isArray(config.noisePatterns)) {
-    throw new Error(`${configPath}: expected a "noisePatterns" array`);
+  let raw;
+  try {
+    raw = await readFile(configPath, 'utf8');
+  } catch (error) {
+    throw new Error(`Could not read noise-pattern config at "${configPath}": ${error.message}`, {
+      cause: error,
+    });
   }
+
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`"${configPath}" is not valid JSON: ${error.message}`, { cause: error });
+  }
+
+  if (!Array.isArray(config.noisePatterns)) {
+    throw new Error(`"${configPath}": expected a "noisePatterns" array`);
+  }
+
+  validateNoisePatterns(config.noisePatterns);
   return config.noisePatterns;
 }
 

@@ -13,6 +13,7 @@ import {
   resolveIssue,
   classifyIssue,
   formatNeedsFixList,
+  validateNoisePatterns,
 } from '../lib/sentry-api.mjs';
 
 /**
@@ -175,6 +176,23 @@ describe('classifyIssue', () => {
   test('treats an issue with no configured patterns as needs-fix', () => {
     const issue = issueFixture();
     assert.strictEqual(classifyIssue(issue, []), 'needs-fix');
+  });
+});
+
+describe('validateNoisePatterns', () => {
+  test('does not throw for well-formed patterns', () => {
+    assert.doesNotThrow(() => validateNoisePatterns(['^sentry-smoke-test\\b', 'foo.*bar']));
+  });
+
+  test('does not throw for an empty list', () => {
+    assert.doesNotThrow(() => validateNoisePatterns([]));
+  });
+
+  test('throws naming the offending pattern when one is not a valid regex', () => {
+    assert.throws(() => validateNoisePatterns(['valid-one', '(unclosed-group']), (err) => {
+      assert.ok(err.message.includes('(unclosed-group'));
+      return true;
+    });
   });
 });
 

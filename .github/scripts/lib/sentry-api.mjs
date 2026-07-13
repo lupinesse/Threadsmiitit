@@ -125,6 +125,28 @@ export function classifyIssue(issue, noisePatterns) {
 }
 
 /**
+ * Verify every noise pattern compiles as a regular expression, throwing an
+ * informative error naming the first offender rather than letting a bad
+ * pattern surface as a confusing failure later, mid-classification.
+ *
+ * @param {string[]} noisePatterns
+ * @throws {Error} If any pattern is not a valid regex.
+ * @returns {void}
+ */
+export function validateNoisePatterns(noisePatterns) {
+  for (const pattern of noisePatterns) {
+    try {
+      // Patterns come from the repo-committed sentry-triage.config.json, not
+      // from Sentry event data or any other untrusted input.
+      // eslint-disable-next-line security/detect-non-literal-regexp
+      new RegExp(pattern, 'i');
+    } catch (error) {
+      throw new Error(`Invalid noise pattern "${pattern}": ${error.message}`, { cause: error });
+    }
+  }
+}
+
+/**
  * Render the issues that still need a fix as a GitHub-flavoured markdown
  * list, for the body of a tracking issue.
  *
