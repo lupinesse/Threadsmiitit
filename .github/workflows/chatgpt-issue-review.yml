@@ -35,6 +35,10 @@ concurrency:
 
 jobs:
   chatgpt-issue-review:
+    # Assumes edits made via the ChatGPT Reviewer App token report sender.type
+    # == 'Bot'. If a future run ever shows a non-bot sender for the app's own
+    # edit, this stops preventing the self-triggered loop — check this first
+    # if the workflow starts firing repeatedly on the same issue.
     if: github.event_name == 'workflow_dispatch' || github.event.sender.type != 'Bot'
     runs-on: ubuntu-latest
     permissions:

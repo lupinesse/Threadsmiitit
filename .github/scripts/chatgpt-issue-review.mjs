@@ -128,6 +128,7 @@ async function reviewWithOpenAI(title, body) {
  * @param {string} title
  * @param {string} body
  * @returns {Promise<object>}
+ * @throws {Error} If the GitHub API request fails.
  */
 async function updateIssue(title, body) {
   const response = await fetch(
