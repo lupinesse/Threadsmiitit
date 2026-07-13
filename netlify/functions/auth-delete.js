@@ -14,7 +14,11 @@
  * @param {Request} req
  * @returns {Promise<Response>}
  */
-export default async function handler(req) {
+import { initSentry, withSentry } from './lib/sentry.mjs';
+
+initSentry();
+
+async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(null, { status: 405 });
   }
@@ -30,5 +34,7 @@ export default async function handler(req) {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+export default withSentry(handler);
 
 export const config = { path: '/api/auth/delete' };

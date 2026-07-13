@@ -10,8 +10,11 @@
  * @returns {Response}
  */
 import { getUser, isAdmin } from './lib/session.mjs';
+import { initSentry, withSentry } from './lib/sentry.mjs';
 
-export default function handler(req) {
+initSentry();
+
+function handler(req) {
   const user = getUser(req);
   if (!user) {
     return new Response('null', { status: 401, headers: { 'Content-Type': 'application/json' } });
@@ -21,5 +24,7 @@ export default function handler(req) {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+export default withSentry(handler);
 
 export const config = { path: '/api/auth/whoami' };

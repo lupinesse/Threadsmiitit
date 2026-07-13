@@ -209,8 +209,12 @@ export function DateLeaf({ date, cat, t }) {
  * @param {Function} props.onClick - Click handler.
  * @param {boolean} [props.dim] - Reduces opacity (e.g. for past events).
  * @param {boolean} [props.fav] - Whether this meetup is favourited.
+ * @param {boolean} [props.showAddedBy] - Whether to show who submitted the
+ *   meetup (`m.addedBy`), as opposed to who is organising it (`m.org`).
+ *   Submitter identity is moderation-only information — only admin views
+ *   (e.g. AdminInbox) should pass `true`.
  */
-export function MeetupCard({ m, t, onClick, dim = false, fav = false }) {
+export function MeetupCard({ m, t, onClick, dim = false, fav = false, showAddedBy = false }) {
   const pending = m.status === 'pending';
   return (
     <button
@@ -310,7 +314,7 @@ export function MeetupCard({ m, t, onClick, dim = false, fav = false }) {
         {m.org && m.org.length > 0 && (
           <div style={{ fontSize: 12, color: t.inkSoft, marginTop: 3 }}>{m.org.join(', ')}</div>
         )}
-        {m.addedBy && (
+        {showAddedBy && m.addedBy && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
             {m.addedBy.avatarUrl ? (
               <img
@@ -430,8 +434,11 @@ export function DetailRow({ icon, label, sub, t }) {
 /**
  * Full meetup detail view, rendered inside a Sheet.
  * @param {object} props - Props: m (meetup or null), t (theme), fav (boolean), onFav, onClose (optional).
+ * @param {boolean} [props.showAddedBy] - Whether to render the "Lisätty sovelluksessa" section
+ *   showing who submitted the meetup (`m.addedBy`), as opposed to who is organising it (`m.org`).
+ *   Submitter identity is moderation-only information — only admin views should pass `true`.
  */
-export function MeetupDetail({ m, t, fav, onFav, onClose }) {
+export function MeetupDetail({ m, t, fav, onFav, onClose, showAddedBy = false }) {
   if (!m) return null;
   const days = DH.daysBetween(DH.todayStr(), m.date);
   const when =
@@ -560,7 +567,7 @@ export function MeetupDetail({ m, t, fav, onFav, onClose }) {
             </div>
           </div>
         </div>
-        {m.addedBy && (
+        {showAddedBy && m.addedBy && (
           <div
             style={{
               display: 'flex',
