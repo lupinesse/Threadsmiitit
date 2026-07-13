@@ -209,6 +209,77 @@ describe('ScreenLisaa — login-gate hook order (regression)', () => {
 describe('End-to-end: admin moderation queue', () => {
   after(cleanup);
 
+describe('ScreenLisaa — step 3 preview card', () => {
+  after(cleanup);
+
+  it('opens the full detail sheet with no favourite toggle when the preview card is tapped', async (t) => {
+    // ScreenLisaa's gate checks the `user` prop directly, so the whoami
+    // mock only needs to exist to satisfy AuthProvider's own fetch — its
+    // result is irrelevant to this test.
+    mockFetch(t, { 'GET /api/auth/whoami': { status: 401, body: null } });
+
+    const th = makeTheme('social', 'monodark');
+    const loggedIn = { id: 'u1', username: 'kirjautunut', avatarUrl: '', profileUrl: '' };
+    const { unmount } = render(
+      React.createElement(
+        AuthProvider,
+        null,
+        React.createElement(ScreenLisaa, {
+          t: th,
+          user: loggedIn,
+          onDone: () => {},
+          onOpenChat: () => {},
+          refresh: () => {},
+        })
+      )
+    );
+
+    // Step 0 — title + date.
+    fireEvent.change(await screen.findByLabelText('Miitin nimi'), {
+      target: { value: 'Esikatselumiitti' },
+    });
+    fireEvent.change(screen.getByLabelText('Päivämäärä'), { target: { value: '2099-06-15' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Jatka' }));
+
+    // Step 1 — city + category.
+    fireEvent.click(await screen.findByRole('button', { name: 'Helsinki' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Karaoke' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Jatka' }));
+
+    // Step 2 — organiser + Threads URL.
+    fireEvent.change(await screen.findByLabelText('Threads-käyttäjänimesi'), {
+      target: { value: '@jarjestaja' },
+    });
+    fireEvent.change(screen.getByLabelText('Linkki Threads-postaukseen'), {
+      target: { value: 'https://www.threads.com/@jarjestaja/post/xyz' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Jatka' }));
+
+    // Step 3 — the preview card is a real button; tapping it opens the same
+    // MeetupDetail sheet used everywhere else in the app.
+    await screen.findByText('Näin se näyttää!');
+    const previewCard = screen.getByText('Esikatselumiitti').closest('button');
+    assert.ok(previewCard, 'preview card should be a clickable button');
+    fireEvent.click(previewCard);
+
+    await screen.findByRole('heading', { name: 'Esikatselumiitti' });
+    assert.ok(screen.getAllByText('@jarjestaja').length > 0, 'organiser handle should be visible');
+
+    // Regression: the draft has no stable id yet, so the favourite toggle
+    // (which persists to localStorage keyed by id/title|date) must be hidden.
+    assert.equal(
+      screen.queryByRole('button', { name: 'Lisää suosikiksi' }),
+      null,
+      'favourite toggle should be hidden for an unsaved draft'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sulje' }));
+    assert.equal(screen.queryByRole('heading', { name: 'Esikatselumiitti' }), null);
+
+    await act(async () => unmount());
+  });
+});
+
   const PENDING_EVENT = {
     id: 'pend',
     title: 'Odottava miitti',
