@@ -18,7 +18,7 @@
  * SSR-loaded app try to reach a real server that isn't running here.
  */
 
-import { after, describe, it } from 'node:test';
+import { after, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -43,6 +43,7 @@ const { default: App } = await vite.ssrLoadModule('/src/App.jsx');
 const { AuthProvider } = await vite.ssrLoadModule('/src/contexts/AuthContext.jsx');
 const { ScreenLisaa } = await vite.ssrLoadModule('/src/screens/ScreenLisaa.jsx');
 const { makeTheme } = await vite.ssrLoadModule('/src/theme.js');
+const { AppErrorBoundary } = await vite.ssrLoadModule('/src/components/AppErrorBoundary.jsx');
 
 const TEST_TITLE = 'E2E-testimiitti';
 const TEST_ID = 'e2t1';
@@ -203,6 +204,33 @@ describe('ScreenLisaa — login-gate hook order (regression)', () => {
     assert.equal(titleInputAgain.value, 'Kirjoitettu otsikko');
 
     await act(async () => unmount());
+  });
+});
+
+describe('AppErrorBoundary', () => {
+  after(cleanup);
+
+  it('renders its children normally when nothing throws', () => {
+    const { unmount } = render(
+      React.createElement(AppErrorBoundary, null, React.createElement('p', null, 'ok'))
+    );
+    assert.ok(screen.getByText('ok'));
+    unmount();
+  });
+
+  it('renders the Finnish fallback instead of crashing when a child throws', () => {
+    function Boom() {
+      throw new Error('boom');
+    }
+    const consoleError = mock.method(console, 'error', () => {});
+
+    const { unmount } = render(
+      React.createElement(AppErrorBoundary, null, React.createElement(Boom))
+    );
+
+    assert.ok(screen.getByText('Jokin meni pieleen. Yritä päivittää sivu.'));
+    unmount();
+    consoleError.mock.restore();
   });
 });
 
