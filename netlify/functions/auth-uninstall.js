@@ -11,12 +11,18 @@
  * @param {Request} req
  * @returns {Response}
  */
-export default function handler(req) {
+import { initSentry, withSentry } from './lib/sentry.mjs';
+
+initSentry();
+
+function handler(req) {
   if (req.method !== 'POST') {
     return new Response(null, { status: 405 });
   }
 
   return new Response(null, { status: 200 });
 }
+
+export default withSentry(handler);
 
 export const config = { path: '/api/auth/uninstall' };

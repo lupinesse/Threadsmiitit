@@ -28,6 +28,9 @@ import {
   getEvent,
 } from './lib/eventsStore.mjs';
 import { json, readJsonBody } from './lib/http.mjs';
+import { initSentry, withSentry } from './lib/sentry.mjs';
+
+initSentry();
 
 /**
  * Loads an event and checks the caller owns it — the shared guard for the
@@ -111,6 +114,6 @@ export function createHandler(store) {
   };
 }
 
-export default createHandler();
+export default withSentry(createHandler());
 
 export const config = { path: '/api/events' };

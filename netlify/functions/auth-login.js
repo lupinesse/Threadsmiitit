@@ -11,8 +11,11 @@
  * @returns {Response}
  */
 import { randomBytes } from 'node:crypto';
+import { initSentry, withSentry } from './lib/sentry.mjs';
 
-export default function handler(_req) {
+initSentry();
+
+function handler(_req) {
   const state = randomBytes(16).toString('hex');
   const params = new URLSearchParams({
     client_id: process.env.THREADS_CLIENT_ID,
@@ -30,5 +33,7 @@ export default function handler(_req) {
     },
   });
 }
+
+export default withSentry(handler);
 
 export const config = { path: '/api/auth/login' };

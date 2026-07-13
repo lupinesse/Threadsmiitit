@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Sentry error monitoring, disabled by default. `src/lib/sentry.js` initialises `@sentry/react` from `VITE_SENTRY_DSN` and `main.jsx` wraps the app tree in a `Sentry.ErrorBoundary` with a Finnish fallback message. `netlify/functions/lib/sentry.mjs` initialises `@sentry/node` from `SENTRY_DSN` and exports a `withSentry(handler)` wrapper, applied to all eleven Netlify Functions, that reports uncaught exceptions and returns a generic JSON 500 instead of an opaque platform error page. Both DSNs default to unset, in which case the SDKs are never configured and the app/functions behave exactly as before. New env vars documented with dummy values in `.env.example`.
 - `LICENSE` (MIT), `CODE_OF_CONDUCT.md` (Contributor Covenant), and `CITATION.cff`, linked from the README.
 - `.env.example` documenting every Netlify Function environment variable, with dummy values.
 - An end-to-end test (`test/e2e.mjs`) that renders the app in a simulated DOM and drives a full browse → open → favourite flow, run as part of `npm test`.
