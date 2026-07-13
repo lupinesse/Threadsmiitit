@@ -9,7 +9,8 @@ import { Sentry } from '../lib/sentry.js';
 
 /**
  * @param {object} props
- * @param {React.ReactNode} props.children
+ * @param {React.ReactNode} props.children - The application component tree
+ *   (or any other UI elements) to render, guarded by this error boundary.
  */
 export function AppErrorBoundary({ children }) {
   return (

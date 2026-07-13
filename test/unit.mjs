@@ -1149,6 +1149,29 @@ function flipDecodedBytes(base64UrlSegment) {
   return bytes.toString('base64url');
 }
 
+describe('flipDecodedBytes', () => {
+  it('flips every bit of the last decoded byte', () => {
+    const original = Buffer.from([0x01, 0x02, 0x03]).toString('base64url');
+    const flipped = Buffer.from(flipDecodedBytes(original), 'base64url');
+    assert.deepStrictEqual([...flipped], [0x01, 0x02, 0x03 ^ 0xff]);
+  });
+
+  it('changes the decoded bytes for a real HMAC-sized segment', () => {
+    const original = Buffer.alloc(32, 0x42).toString('base64url');
+    const flipped = flipDecodedBytes(original);
+    assert.notDeepStrictEqual(
+      Buffer.from(flipped, 'base64url'),
+      Buffer.from(original, 'base64url')
+    );
+  });
+
+  it('preserves every byte except the last', () => {
+    const original = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd]).toString('base64url');
+    const flipped = Buffer.from(flipDecodedBytes(original), 'base64url');
+    assert.deepStrictEqual([...flipped.subarray(0, -1)], [0xaa, 0xbb, 0xcc]);
+  });
+});
+
 describe('signSession / verifySession', () => {
   it('round-trips a valid token', () => {
     const token = signSession(sessionUser, { secret: 'k' });
