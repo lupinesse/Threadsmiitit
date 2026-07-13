@@ -7,6 +7,9 @@
  */
 import * as Sentry from '@sentry/node';
 
+/** Max time to wait for a queued Sentry event to send before responding, in ms. */
+const FLUSH_TIMEOUT_MS = 2000;
+
 /**
  * Extracts just the path from a request URL, without throwing if the URL is
  * relative or missing (as it may be in tests, unlike the always-absolute
@@ -63,7 +66,7 @@ export function withSentry(handler, sentryClient = Sentry) {
       // place the error is guaranteed to be visible.
       console.error('[sentry] unhandled error in Netlify Function', requestContext, error);
       sentryClient.captureException(error, { contexts: { request: requestContext } });
-      await sentryClient.flush(2000);
+      await sentryClient.flush(FLUSH_TIMEOUT_MS);
       return new Response(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
