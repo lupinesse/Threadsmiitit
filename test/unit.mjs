@@ -348,6 +348,12 @@ describe('normCatSuggestion', () => {
     assert.strictEqual(normCatSuggestion(''), '');
     assert.strictEqual(normCatSuggestion('   '), '');
   });
+
+  it('coerces non-string input to a string instead of throwing', () => {
+    assert.strictEqual(normCatSuggestion(42), '42');
+    assert.strictEqual(normCatSuggestion(true), 'true');
+    assert.strictEqual(normCatSuggestion(null), '');
+  });
 });
 
 // ── EventStore's server-backed async methods ────────────────────────────────

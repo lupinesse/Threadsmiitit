@@ -104,6 +104,13 @@ describe('createEvent', () => {
     assert.strictEqual('catSuggestion' in result.event, false);
   });
 
+  it('coerces a non-string catSuggestion instead of rejecting the submission', async () => {
+    const store = createFakeStore();
+    const result = await createEvent({ ...validPartial, catSuggestion: 42 }, addedBy, store);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.event.catSuggestion, '42');
+  });
+
   it('generates unique ids across repeated calls', async () => {
     const store = createFakeStore();
     const a = await createEvent(validPartial, addedBy, store);
