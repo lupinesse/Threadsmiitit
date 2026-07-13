@@ -7,7 +7,8 @@ import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
-import { initSentry, Sentry } from './lib/sentry.js';
+import { AppErrorBoundary } from './components/AppErrorBoundary.jsx';
+import { initSentry } from './lib/sentry.js';
 import './css/styles.scss';
 
 initSentry();
@@ -19,16 +20,10 @@ if (!root) {
 
 ReactDOM.createRoot(root).render(
   <StrictMode>
-    <Sentry.ErrorBoundary
-      fallback={
-        <div style={{ padding: 24, textAlign: 'center', fontFamily: 'sans-serif' }}>
-          <p>Jokin meni pieleen. Yritä päivittää sivu.</p>
-        </div>
-      }
-    >
+    <AppErrorBoundary>
       <AuthProvider>
         <App />
       </AuthProvider>
-    </Sentry.ErrorBoundary>
+    </AppErrorBoundary>
   </StrictMode>
 );
