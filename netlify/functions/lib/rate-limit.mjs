@@ -57,15 +57,17 @@ function resolveStore(store) {
 /**
  * Filters `hits` down to those still inside the window and decides whether
  * one more is allowed, recording it if so. Pure — no I/O — so the sliding
- * window logic itself stays unit-testable without a store.
- * @param {number[]} hits - Prior hit timestamps (ms).
+ * window logic itself stays unit-testable without a store. Order of `hits`
+ * doesn't matter — each element is filtered independently by its own age,
+ * not by position — so callers don't need to keep the array sorted.
+ * @param {number[]} hits - Prior hit timestamps (ms), any order.
  * @param {number} now - Current time (ms).
  * @param {number} windowMs - Window size (ms).
  * @param {number} max - Maximum hits allowed within the window.
  * @returns {{allowed: boolean, hits: number[]}} Whether this hit is allowed,
  *   and the pruned (plus this hit, if allowed) hit list to persist.
  */
-function recordHit(hits, now, windowMs, max) {
+export function recordHit(hits, now, windowMs, max) {
   const recentHits = hits.filter((hitTime) => now - hitTime < windowMs);
   const allowed = recentHits.length < max;
   if (allowed) {

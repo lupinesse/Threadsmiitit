@@ -1041,10 +1041,34 @@ describe('validatePrompt', () => {
 
 import {
   isWithinRateLimit,
+  recordHit,
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX_REQUESTS,
 } from '../netlify/functions/lib/rate-limit.mjs';
 import { createFakeStore } from './fakes/blobsStore.mjs';
+
+describe('recordHit', () => {
+  it('allows and records a hit when given an empty history', () => {
+    const result = recordHit([], 0, 1000, 5);
+    assert.deepStrictEqual(result, { allowed: true, hits: [0] });
+  });
+
+  it('prunes hits at or beyond the window boundary and keeps ones just inside it', () => {
+    const result = recordHit([0, 500, 999], 1000, 1000, 5);
+    assert.deepStrictEqual(result, { allowed: true, hits: [500, 999, 1000] });
+  });
+
+  it('denies without mutating the list when already at max, even with hits pending pruning', () => {
+    const result = recordHit([10, 20, 30], 40, 1000, 3);
+    assert.deepStrictEqual(result, { allowed: false, hits: [10, 20, 30] });
+  });
+
+  it('does not depend on input order — an unsorted history prunes and counts the same', () => {
+    const sorted = recordHit([10, 5000, 20], 6000, 1000, 5);
+    const unsorted = recordHit([5000, 20, 10], 6000, 1000, 5);
+    assert.deepStrictEqual(sorted, unsorted);
+  });
+});
 
 describe('isWithinRateLimit', () => {
   it('allows requests under the limit', async () => {
@@ -1119,6 +1143,29 @@ describe('isWithinRateLimit', () => {
       },
     };
     assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, store }), true);
+  });
+
+  it('logs the failure when it fails open, so a real Blobs outage is observable', async () => {
+    const readError = new Error('Blobs read failed');
+    const store = {
+      async get() {
+        throw readError;
+      },
+      async set() {},
+    };
+    const originalConsoleError = console.error;
+    const loggedCalls = [];
+    console.error = (...args) => loggedCalls.push(args);
+    try {
+      await isWithinRateLimit('ip1', { now: 0, store });
+    } finally {
+      console.error = originalConsoleError;
+    }
+    assert.strictEqual(loggedCalls.length, 1);
+    const [message, details] = loggedCalls[0];
+    assert.match(message, /Blobs store error/);
+    assert.strictEqual(details.key, 'ip1');
+    assert.strictEqual(details.error, readError);
   });
 });
 
