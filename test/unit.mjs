@@ -33,6 +33,7 @@ globalThis.localStorage = {
 // ── DH helpers ──────────────────────────────────────────────────────────────
 
 const { DH, CITIES, CATEGORIES, MEETUPS } = await import('../src/data.js');
+const { normCatSuggestion, CAT_SUGGESTION_MAX_LEN } = await import('../shared/eventFields.mjs');
 
 describe('DH.parse', () => {
   it('parses YYYY-MM-DD to a local Date', () => {
@@ -303,6 +304,55 @@ describe('EventStore.normalize', () => {
       url: 'https://notthreads.com/foo',
     });
     assert.strictEqual(result.url, '');
+  });
+
+  it('passes through a trimmed catSuggestion without resolving it against CATEGORIES', () => {
+    const result = EventStore.normalize({
+      title: 'T',
+      date: '2026-06-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      catSuggestion: '  Lautapelit  ',
+      org: '@x',
+      url: '',
+    });
+    assert.strictEqual(result.catSuggestion, 'Lautapelit');
+    assert.strictEqual(result.cat, 'yleinen');
+  });
+
+  it('omits catSuggestion when not supplied', () => {
+    const result = EventStore.normalize({
+      title: 'T',
+      date: '2026-06-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: '',
+    });
+    assert.strictEqual('catSuggestion' in result, false);
+  });
+});
+
+describe('normCatSuggestion', () => {
+  it('trims surrounding whitespace', () => {
+    assert.strictEqual(normCatSuggestion('  Lautapelit  '), 'Lautapelit');
+  });
+
+  it('caps length at CAT_SUGGESTION_MAX_LEN', () => {
+    const long = 'a'.repeat(60);
+    assert.strictEqual(normCatSuggestion(long).length, CAT_SUGGESTION_MAX_LEN);
+  });
+
+  it('returns empty string for missing input', () => {
+    assert.strictEqual(normCatSuggestion(undefined), '');
+    assert.strictEqual(normCatSuggestion(''), '');
+    assert.strictEqual(normCatSuggestion('   '), '');
+  });
+
+  it('coerces non-string input to a string instead of throwing', () => {
+    assert.strictEqual(normCatSuggestion(42), '42');
+    assert.strictEqual(normCatSuggestion(true), 'true');
+    assert.strictEqual(normCatSuggestion(null), '');
   });
 });
 
@@ -951,6 +1001,54 @@ describe('validatePrompt', () => {
     const result = validatePrompt('a'.repeat(MAX_PROMPT_LENGTH + 1));
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.status, 413);
+  });
+});
+
+// ── rate-limit ───────────────────────────────────────────────────────────────
+
+import {
+  isWithinRateLimit,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_REQUESTS,
+} from '../netlify/functions/lib/rate-limit.mjs';
+
+describe('isWithinRateLimit', () => {
+  it('allows requests under the limit', () => {
+    const store = new Map();
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0 }), true);
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1 }), true);
+  });
+
+  it('denies once a key reaches its max within the window', () => {
+    const store = new Map();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
+      assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: i }), true);
+    }
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: RATE_LIMIT_MAX_REQUESTS }), false);
+  });
+
+  it('allows again once old hits fall outside the window', () => {
+    const store = new Map();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
+      isWithinRateLimit(store, 'ip1', { now: i });
+    }
+    const afterWindow = RATE_LIMIT_WINDOW_MS + 1;
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: afterWindow }), true);
+  });
+
+  it('tracks separate keys independently', () => {
+    const store = new Map();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
+      isWithinRateLimit(store, 'ip1', { now: i });
+    }
+    assert.strictEqual(isWithinRateLimit(store, 'ip2', { now: 0 }), true);
+  });
+
+  it('respects injected windowMs/max overrides', () => {
+    const store = new Map();
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0, max: 1 }), true);
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1, max: 1 }), false);
+    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 100, windowMs: 50, max: 1 }), true);
   });
 });
 

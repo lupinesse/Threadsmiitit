@@ -14,8 +14,8 @@ import { CITIES, CATEGORIES, DH } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { THREADS_URL_RE as URL_RE } from '../../shared/eventFields.mjs';
-import { hexA, cityName, MeetupCard, Pill } from '../components/ui.jsx';
+import { THREADS_URL_RE as URL_RE, CAT_SUGGESTION_MAX_LEN } from '../../shared/eventFields.mjs';
+import { hexA, cityName, MeetupCard, MeetupDetail, Sheet, Pill } from '../components/ui.jsx';
 import {
   IconSpark,
   IconCheck,
@@ -232,13 +232,15 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
   // form would empty itself — the next time the gate turns back off.
   const [step, setStep] = useState(0);
   const [f, setF] = useState(() => {
-    if (!editTarget) return { title: '', city: '', cat: '', date: '', org: '', url: '' };
+    if (!editTarget)
+      return { title: '', city: '', cat: '', catSuggestion: '', date: '', org: '', url: '' };
     return {
       title: editTarget.title ?? '',
       city: editCityIsBuiltIn
         ? (editTarget.city ?? '')
         : cityName(editTarget.city) || editTarget.city || '',
       cat: editTarget.cat ?? '',
+      catSuggestion: editTarget.catSuggestion ?? '',
       date: editTarget.date ?? '',
       org: (editTarget.org ?? []).join(', '),
       url: editTarget.url ?? '',
@@ -246,8 +248,10 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
   });
   const [saved, setSaved] = useState(null);
   const [customCity, setCustomCity] = useState(isEdit && !editCityIsBuiltIn);
+  const [suggestingCat, setSuggestingCat] = useState(isEdit && !!editTarget?.catSuggestion);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
@@ -311,6 +315,17 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
       </div>
     );
   }
+
+  // Live preview of the meetup as it will be saved — shown as a card in step 3
+  // and expanded into the full detail sheet when that card is tapped.
+  const draftMeetup = {
+    title: f.title || 'Miitin nimi',
+    city: f.city || 'helsinki',
+    cat: f.cat || 'yleinen',
+    date: f.date || DH.todayStr(),
+    org: [f.org || '@sinä'],
+    url: f.url || '#',
+  };
 
   const cityOk = customCity ? !!EventStore.canonicalKunta(f.city) : !!f.city.trim();
   const urlOk = URL_RE.test(f.url.trim());
@@ -672,7 +687,27 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
                   </button>
                 );
               })}
+              <Pill t={t} active={suggestingCat} onClick={() => setSuggestingCat((v) => !v)}>
+                <IconPlus size={14} sw={2.4} /> Ehdota lajia
+              </Pill>
             </div>
+            {suggestingCat && (
+              <div style={{ marginTop: 10 }}>
+                <input
+                  value={f.catSuggestion}
+                  onChange={(e) =>
+                    set('catSuggestion', e.target.value.slice(0, CAT_SUGGESTION_MAX_LEN))
+                  }
+                  placeholder="esim. Lautapelit"
+                  maxLength={CAT_SUGGESTION_MAX_LEN}
+                  style={inputStyle(t)}
+                />
+                <div style={{ fontSize: 11.5, color: t.inkSoft, marginTop: 7, lineHeight: 1.4 }}>
+                  Valitse yllä lähin laji tälle miitille — ylläpito käsittelee ehdotuksesi ja voi
+                  lisätä sen omana lajinaan myöhemmin.
+                </div>
+              </div>
+            )}
           </Field>
         </div>
       )}
@@ -761,20 +796,16 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
               {isEdit ? 'Tarkista muutokset ja tallenna.' : 'Tarkista esikatselu ja lähetä.'}
             </p>
           </div>
-          <div style={{ pointerEvents: 'none', marginBottom: 18 }}>
+          <div style={{ marginBottom: 18 }}>
             <MeetupCard
               t={t.card}
               fav={false}
-              m={{
-                title: f.title || 'Miitin nimi',
-                city: f.city || 'helsinki',
-                cat: f.cat || 'yleinen',
-                date: f.date || DH.todayStr(),
-                org: [f.org || '@sinä'],
-                url: '#',
-              }}
-              onClick={() => {}}
+              m={draftMeetup}
+              onClick={() => setPreviewOpen(true)}
             />
+          </div>
+          <div style={{ textAlign: 'center', fontSize: 12.5, color: t.inkSoft, marginBottom: 2 }}>
+            Napauta korttia nähdäksesi täydet tiedot ennen lähetystä.
           </div>
         </div>
       )}
@@ -864,6 +895,20 @@ export function ScreenLisaa({ t, user, onDone, onOpenChat, refresh, editTarget, 
                 : 'Lähetä miitti'}
         </button>
       </div>
+
+      <Sheet
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        t={t.card}
+        label="Miitin esikatselu"
+      >
+        <MeetupDetail
+          m={previewOpen ? draftMeetup : null}
+          t={t.card}
+          showFav={false}
+          onClose={() => setPreviewOpen(false)}
+        />
+      </Sheet>
     </div>
   );
 }

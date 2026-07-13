@@ -9,7 +9,7 @@
  * genuine Threads URL) rather than trust the client blindly.
  */
 
-import { THREADS_URL_RE, normOrg } from '../../../shared/eventFields.mjs';
+import { THREADS_URL_RE, normOrg, normCatSuggestion } from '../../../shared/eventFields.mjs';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SLUG_RE = /^[a-z0-9-]+$/;
@@ -33,6 +33,13 @@ export function normalizeEvent(p) {
   if (!cat || !SLUG_RE.test(cat))
     return { ok: false, error: 'cat must be a resolved category key' };
 
+  // A submitter can additionally suggest a category that doesn't exist yet.
+  // It's stored as free text alongside the required, resolved `cat` (which
+  // stays whatever known category the submitter picked as the closest
+  // match) so the public feed and category styling are unaffected — an
+  // admin reviews the suggestion in the moderation queue.
+  const catSuggestion = normCatSuggestion(p?.catSuggestion);
+
   const url = (p?.url ?? '').toString().trim();
   if (url && !THREADS_URL_RE.test(url))
     return { ok: false, error: 'url must be a threads.com/threads.net link' };
@@ -44,6 +51,7 @@ export function normalizeEvent(p) {
       date,
       city,
       cat,
+      ...(catSuggestion ? { catSuggestion } : {}),
       org: normOrg(p?.org ?? p?.organizer),
       area: p?.area ? String(p.area).trim().slice(0, 40) : undefined,
       url,
