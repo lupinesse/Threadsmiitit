@@ -1044,44 +1044,69 @@ import {
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX_REQUESTS,
 } from '../netlify/functions/lib/rate-limit.mjs';
+import { createFakeStore } from './fakes/blobsStore.mjs';
 
 describe('isWithinRateLimit', () => {
-  it('allows requests under the limit', () => {
-    const store = new Map();
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0 }), true);
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1 }), true);
+  it('allows requests under the limit', async () => {
+    const store = createFakeStore();
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, store }), true);
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 1, store }), true);
   });
 
-  it('denies once a key reaches its max within the window', () => {
-    const store = new Map();
+  it('denies once a key reaches its max within the window', async () => {
+    const store = createFakeStore();
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
-      assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: i }), true);
+      assert.strictEqual(await isWithinRateLimit('ip1', { now: i, store }), true);
     }
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: RATE_LIMIT_MAX_REQUESTS }), false);
+    assert.strictEqual(
+      await isWithinRateLimit('ip1', { now: RATE_LIMIT_MAX_REQUESTS, store }),
+      false
+    );
   });
 
-  it('allows again once old hits fall outside the window', () => {
-    const store = new Map();
+  it('allows again once old hits fall outside the window', async () => {
+    const store = createFakeStore();
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
-      isWithinRateLimit(store, 'ip1', { now: i });
+      await isWithinRateLimit('ip1', { now: i, store });
     }
     const afterWindow = RATE_LIMIT_WINDOW_MS + 1;
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: afterWindow }), true);
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: afterWindow, store }), true);
   });
 
-  it('tracks separate keys independently', () => {
-    const store = new Map();
+  it('tracks separate keys independently', async () => {
+    const store = createFakeStore();
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
-      isWithinRateLimit(store, 'ip1', { now: i });
+      await isWithinRateLimit('ip1', { now: i, store });
     }
-    assert.strictEqual(isWithinRateLimit(store, 'ip2', { now: 0 }), true);
+    assert.strictEqual(await isWithinRateLimit('ip2', { now: 0, store }), true);
   });
 
-  it('respects injected windowMs/max overrides', () => {
-    const store = new Map();
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0, max: 1 }), true);
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1, max: 1 }), false);
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 100, windowMs: 50, max: 1 }), true);
+  it('respects injected windowMs/max overrides', async () => {
+    const store = createFakeStore();
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, max: 1, store }), true);
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 1, max: 1, store }), false);
+    assert.strictEqual(
+      await isWithinRateLimit('ip1', { now: 100, windowMs: 50, max: 1, store }),
+      true
+    );
+  });
+
+  it('persists hits across separate calls sharing the same store, proving distribution across instances', async () => {
+    // Simulates two warm function instances hitting the same key: each call
+    // resolves its own store handle, but both point at the same backing
+    // store, unlike the old per-instance in-memory Map.
+    const store = createFakeStore();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS - 1; i++) {
+      assert.strictEqual(await isWithinRateLimit('shared-ip', { now: i, store }), true);
+    }
+    assert.strictEqual(
+      await isWithinRateLimit('shared-ip', { now: RATE_LIMIT_MAX_REQUESTS - 1, store }),
+      true
+    );
+    assert.strictEqual(
+      await isWithinRateLimit('shared-ip', { now: RATE_LIMIT_MAX_REQUESTS, store }),
+      false
+    );
   });
 });
 
