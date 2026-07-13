@@ -16,7 +16,7 @@
 
 import { CITIES, CATEGORIES, MEETUPS } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
-import { THREADS_URL_RE, normOrg } from '../../shared/eventFields.mjs';
+import { THREADS_URL_RE, normOrg, normCatSuggestion } from '../../shared/eventFields.mjs';
 
 const KEY_CITIES = 'threadsmiitit_custom_cities_v1';
 
@@ -180,11 +180,13 @@ function resolveCat(c) {
  * @returns {object} Normalised event fields.
  */
 function normalize(p) {
+  const catSuggestion = normCatSuggestion(p.catSuggestion);
   return {
     title: (p.title ?? '').toString().trim().slice(0, 80),
     date: normDate(p.date),
     city: resolveCity(p.city),
     cat: resolveCat(p.cat ?? p.category),
+    ...(catSuggestion ? { catSuggestion } : {}),
     org: normOrg(p.org ?? p.organizer),
     area: p.area ? String(p.area).trim().slice(0, 40) : undefined,
     url: p.url && THREADS_URL_RE.test(String(p.url).trim()) ? String(p.url).trim() : '',

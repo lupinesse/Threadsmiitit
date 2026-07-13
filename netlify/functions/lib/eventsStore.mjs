@@ -29,6 +29,7 @@ const STORE_NAME = 'events';
  * @property {string} date - YYYY-MM-DD.
  * @property {string} city
  * @property {string} cat
+ * @property {string} [catSuggestion] - Free-text category the submitter proposed adding.
  * @property {string[]} org
  * @property {string} [area]
  * @property {string} url
