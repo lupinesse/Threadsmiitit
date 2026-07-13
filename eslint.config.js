@@ -49,6 +49,10 @@ export default [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
+      // Only the globals genuinely common to both runtimes (e.g. TextEncoder) —
+      // no fetch/Buffer/window/document, which is exactly the constraint this
+      // block's file comment describes.
+      globals: { TextEncoder: 'readonly', TextDecoder: 'readonly' },
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
