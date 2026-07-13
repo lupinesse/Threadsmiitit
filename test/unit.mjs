@@ -1165,6 +1165,46 @@ const sessionUser = {
   profileUrl: 'https://www.threads.com/@lupinesse',
 };
 
+/**
+ * Flips every bit of the last byte of a base64url segment's *decoded* bytes
+ * and re-encodes it — guaranteed to change the underlying data, unlike
+ * editing the base64 text directly. A base64 segment's final character can
+ * carry unused padding bits that a permissive decoder (like Node's
+ * `Buffer.from(..., 'base64url')`) silently ignores, so swapping between two
+ * specific characters at the text level occasionally decodes to identical
+ * bytes and produces a flaky "tampered" token that isn't actually tampered.
+ * @param {string} base64UrlSegment
+ * @returns {string}
+ */
+function flipDecodedBytes(base64UrlSegment) {
+  const bytes = Buffer.from(base64UrlSegment, 'base64url');
+  bytes[bytes.length - 1] ^= 0xff;
+  return bytes.toString('base64url');
+}
+
+describe('flipDecodedBytes', () => {
+  it('flips every bit of the last decoded byte', () => {
+    const original = Buffer.from([0x01, 0x02, 0x03]).toString('base64url');
+    const flipped = Buffer.from(flipDecodedBytes(original), 'base64url');
+    assert.deepStrictEqual([...flipped], [0x01, 0x02, 0x03 ^ 0xff]);
+  });
+
+  it('changes the decoded bytes for a real HMAC-sized segment', () => {
+    const original = Buffer.alloc(32, 0x42).toString('base64url');
+    const flipped = flipDecodedBytes(original);
+    assert.notDeepStrictEqual(
+      Buffer.from(flipped, 'base64url'),
+      Buffer.from(original, 'base64url')
+    );
+  });
+
+  it('preserves every byte except the last', () => {
+    const original = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd]).toString('base64url');
+    const flipped = Buffer.from(flipDecodedBytes(original), 'base64url');
+    assert.deepStrictEqual([...flipped.subarray(0, -1)], [0xaa, 0xbb, 0xcc]);
+  });
+});
+
 describe('signSession / verifySession', () => {
   it('round-trips a valid token', () => {
     const token = signSession(sessionUser, { secret: 'k' });
@@ -1179,26 +1219,14 @@ describe('signSession / verifySession', () => {
   it('rejects a token with a tampered payload segment', () => {
     const token = signSession(sessionUser, { secret: 'k' });
     const [payloadB64, sigB64] = token.split('.');
-    const tampered = `${payloadB64.slice(0, -1)}${payloadB64.at(-1) === 'a' ? 'b' : 'a'}.${sigB64}`;
+    const tampered = `${flipDecodedBytes(payloadB64)}.${sigB64}`;
     assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
   });
 
   it('rejects a token with a tampered signature segment', () => {
     const token = signSession(sessionUser, { secret: 'k' });
     const [payloadB64, sigB64] = token.split('.');
-    // Do not tamper by swapping the *last* base64url character between two
-    // fixed letters (e.g. 'a'/'b'): HMAC-SHA256 signatures are always 32
-    // bytes, and 32 % 3 === 2, so the final base64 group is a partial
-    // 3-character group whose last character encodes only 4 meaningful bits
-    // (the remaining 2 bits are discarded padding). 'a' (011010) and 'b'
-    // (011011) share the same top 4 bits, so whenever the real signature's
-    // last character already falls in that group, decoding the "tampered"
-    // value produces the exact same bytes as the original and verification
-    // spuriously succeeds — a ~1-in-16 flaky failure seen on PR #75. Flip a
-    // full byte instead, which always changes the decoded signature.
-    const sigBytes = Buffer.from(sigB64, 'base64url');
-    sigBytes[0] ^= 0xff;
-    const tampered = `${payloadB64}.${sigBytes.toString('base64url')}`;
+    const tampered = `${payloadB64}.${flipDecodedBytes(sigB64)}`;
     assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
   });
 
