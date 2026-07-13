@@ -42,6 +42,10 @@ export function createHandler(store) {
 
     const result = await cancelEvent(existing, guard.user.username, store);
     if (!result.ok) return json({ error: result.error }, 400);
+
+    console.log(
+      `[events-cancel] event ${id} cancelled by @${guard.user.username} (owner: ${isOwner})`
+    );
     return json({ event: result.event });
   };
 }

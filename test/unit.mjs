@@ -460,6 +460,39 @@ describe('EventStore.remove', () => {
   });
 });
 
+describe('EventStore.cancel', () => {
+  it('POSTs /api/events/cancel with the id as a query param', async (t) => {
+    const calls = mockFetchOnce(t, { event: { id: 'ab12', status: 'cancelled' } });
+    const result = await EventStore.cancel('ab12');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.event.status, 'cancelled');
+    assert.strictEqual(calls[0].url, '/api/events/cancel?id=ab12');
+    assert.strictEqual(calls[0].opts.method, 'POST');
+  });
+
+  it('returns ok:false for a non-owner, non-admin caller', async (t) => {
+    mockFetchOnce(t, { error: 'Forbidden' }, 403);
+    const result = await EventStore.cancel('ab12');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.error, 'Forbidden');
+  });
+
+  it('returns ok:false when the event is not currently approved', async (t) => {
+    mockFetchOnce(t, { error: 'cannot cancel an event with status "pending"' }, 400);
+    const result = await EventStore.cancel('ab12');
+    assert.strictEqual(result.ok, false);
+  });
+
+  it('returns a generic error on a network failure', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('offline');
+    });
+    const result = await EventStore.cancel('ab12');
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /Verkkovirhe/);
+  });
+});
+
 describe('EventStore.approve / reject', () => {
   it('approve() POSTs {action: "approve"} to /api/events/moderate', async (t) => {
     const calls = mockFetchOnce(t, { event: { id: 'ab12', status: 'approved' } });

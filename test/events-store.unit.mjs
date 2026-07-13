@@ -256,6 +256,27 @@ describe('cancelEvent', () => {
     const result = await cancelEvent(cancelled.event, 'submitter', store);
     assert.strictEqual(result.ok, false);
   });
+
+  it('returns ok:false instead of throwing when the store write fails', async () => {
+    const store = createFakeStore();
+    const created = await createEvent(validPartial, addedBy, store);
+    const approved = await moderateEvent(created.event.id, 'approve', undefined, store);
+
+    const failingStore = {
+      ...store,
+      set: async () => {
+        throw new Error('Blobs write failed');
+      },
+    };
+
+    const result = await cancelEvent(approved.event, 'submitter', failingStore);
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /try again/);
+
+    // The event must still be readable and unchanged — a failed cancel must not corrupt state.
+    const stillApproved = await getEvent(created.event.id, store);
+    assert.strictEqual(stillApproved.status, 'approved');
+  });
 });
 
 describe('moderateEvent', () => {

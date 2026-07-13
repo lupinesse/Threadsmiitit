@@ -297,6 +297,11 @@ export async function cancelEvent(existing, actorUsername, store) {
     cancelledAt: Date.now(),
     cancelledBy: actorUsername,
   };
-  await putEvent(event, store);
+  try {
+    await putEvent(event, store);
+  } catch (err) {
+    console.error('[eventsStore] cancelEvent: failed to persist cancellation', err);
+    return { ok: false, error: 'Could not save the cancellation — please try again' };
+  }
   return { ok: true, event };
 }
