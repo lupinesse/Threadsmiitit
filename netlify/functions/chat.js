@@ -28,11 +28,14 @@
  */
 import { isOriginAllowed, validatePrompt } from './lib/validate-chat-request.mjs';
 import { callAnthropic } from './lib/anthropic-proxy.mjs';
+import { initSentry, withSentry } from './lib/sentry.mjs';
+
+initSentry();
 
 /** Allowed request origin — set ALLOWED_ORIGIN in Netlify environment variables. */
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? 'https://threadsmiitit.netlify.app';
 
-export default async function handler(req) {
+async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(null, { status: 405 });
   }
@@ -96,5 +99,7 @@ export default async function handler(req) {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+export default withSentry(handler);
 
 export const config = { path: '/api/chat' };

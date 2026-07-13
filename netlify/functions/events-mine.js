@@ -10,6 +10,9 @@
 import { requireUser } from './lib/session.mjs';
 import { listOwnedEvents } from './lib/eventsStore.mjs';
 import { json } from './lib/http.mjs';
+import { initSentry, withSentry } from './lib/sentry.mjs';
+
+initSentry();
 
 /**
  * Builds the /api/events/mine handler, with the Blobs store injectable for tests.
@@ -28,6 +31,6 @@ export function createHandler(store) {
   };
 }
 
-export default createHandler();
+export default withSentry(createHandler());
 
 export const config = { path: '/api/events/mine' };

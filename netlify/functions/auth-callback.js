@@ -13,8 +13,11 @@
  * @returns {Promise<Response>}
  */
 import { signSession, sessionCookie } from './lib/session.mjs';
+import { initSentry, withSentry } from './lib/sentry.mjs';
 
-export default async function handler(req) {
+initSentry();
+
+async function handler(req) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -118,5 +121,7 @@ export default async function handler(req) {
 
   return new Response(null, { status: 302, headers });
 }
+
+export default withSentry(handler);
 
 export const config = { path: '/api/auth/callback' };
