@@ -1132,6 +1132,23 @@ const sessionUser = {
   profileUrl: 'https://www.threads.com/@lupinesse',
 };
 
+/**
+ * Flips every bit of the last byte of a base64url segment's *decoded* bytes
+ * and re-encodes it — guaranteed to change the underlying data, unlike
+ * editing the base64 text directly. A base64 segment's final character can
+ * carry unused padding bits that a permissive decoder (like Node's
+ * `Buffer.from(..., 'base64url')`) silently ignores, so swapping between two
+ * specific characters at the text level occasionally decodes to identical
+ * bytes and produces a flaky "tampered" token that isn't actually tampered.
+ * @param {string} base64UrlSegment
+ * @returns {string}
+ */
+function flipDecodedBytes(base64UrlSegment) {
+  const bytes = Buffer.from(base64UrlSegment, 'base64url');
+  bytes[bytes.length - 1] ^= 0xff;
+  return bytes.toString('base64url');
+}
+
 describe('signSession / verifySession', () => {
   it('round-trips a valid token', () => {
     const token = signSession(sessionUser, { secret: 'k' });
@@ -1146,14 +1163,14 @@ describe('signSession / verifySession', () => {
   it('rejects a token with a tampered payload segment', () => {
     const token = signSession(sessionUser, { secret: 'k' });
     const [payloadB64, sigB64] = token.split('.');
-    const tampered = `${payloadB64.slice(0, -1)}${payloadB64.at(-1) === 'a' ? 'b' : 'a'}.${sigB64}`;
+    const tampered = `${flipDecodedBytes(payloadB64)}.${sigB64}`;
     assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
   });
 
   it('rejects a token with a tampered signature segment', () => {
     const token = signSession(sessionUser, { secret: 'k' });
     const [payloadB64, sigB64] = token.split('.');
-    const tampered = `${payloadB64}.${sigB64.slice(0, -1)}${sigB64.at(-1) === 'a' ? 'b' : 'a'}`;
+    const tampered = `${payloadB64}.${flipDecodedBytes(sigB64)}`;
     assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
   });
 
