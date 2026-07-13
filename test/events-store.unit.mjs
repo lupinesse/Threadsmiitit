@@ -12,6 +12,7 @@ import {
   createEvent,
   updateEvent,
   moderateEvent,
+  cancelEvent,
   getEvent,
   listAllEvents,
   listVisibleEvents,
@@ -202,6 +203,80 @@ describe('updateEvent', () => {
     const edited = await updateEvent(approved.event, { title: 'Korjattu' }, store);
     assert.strictEqual(edited.event.status, 'approved');
   });
+
+  it('refuses to edit a cancelled event — cancellation is terminal', async () => {
+    const store = createFakeStore();
+    const created = await createEvent(validPartial, addedBy, store);
+    const approved = await moderateEvent(created.event.id, 'approve', undefined, store);
+    const cancelled = await cancelEvent(approved.event, 'submitter', store);
+
+    const edited = await updateEvent(cancelled.event, { title: 'Yritys elvyttää' }, store);
+    assert.strictEqual(edited.ok, false);
+
+    const stillCancelled = await getEvent(created.event.id, store);
+    assert.strictEqual(stillCancelled.status, 'cancelled');
+    assert.strictEqual(stillCancelled.title, 'Threads-kahvit');
+  });
+});
+
+describe('cancelEvent', () => {
+  it('cancels an approved event, recording who and when', async () => {
+    const store = createFakeStore();
+    const created = await createEvent(validPartial, addedBy, store);
+    const approved = await moderateEvent(created.event.id, 'approve', undefined, store);
+
+    const result = await cancelEvent(approved.event, 'submitter', store);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.event.status, 'cancelled');
+    assert.strictEqual(result.event.cancelledBy, 'submitter');
+    assert.strictEqual(typeof result.event.cancelledAt, 'number');
+  });
+
+  // Table-driven: every non-approved status must refuse cancellation.
+  for (const status of ['pending', 'rejected']) {
+    it(`refuses to cancel a "${status}" event`, async () => {
+      const store = createFakeStore();
+      const created = await createEvent(validPartial, addedBy, store);
+      const existing =
+        status === 'pending'
+          ? created.event
+          : (await moderateEvent(created.event.id, 'reject', undefined, store)).event;
+
+      const result = await cancelEvent(existing, 'submitter', store);
+      assert.strictEqual(result.ok, false);
+    });
+  }
+
+  it('refuses to cancel an already-cancelled event — cancelling is terminal', async () => {
+    const store = createFakeStore();
+    const created = await createEvent(validPartial, addedBy, store);
+    const approved = await moderateEvent(created.event.id, 'approve', undefined, store);
+    const cancelled = await cancelEvent(approved.event, 'submitter', store);
+
+    const result = await cancelEvent(cancelled.event, 'submitter', store);
+    assert.strictEqual(result.ok, false);
+  });
+
+  it('returns ok:false instead of throwing when the store write fails', async () => {
+    const store = createFakeStore();
+    const created = await createEvent(validPartial, addedBy, store);
+    const approved = await moderateEvent(created.event.id, 'approve', undefined, store);
+
+    const failingStore = {
+      ...store,
+      set: async () => {
+        throw new Error('Blobs write failed');
+      },
+    };
+
+    const result = await cancelEvent(approved.event, 'submitter', failingStore);
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /try again/);
+
+    // The event must still be readable and unchanged — a failed cancel must not corrupt state.
+    const stillApproved = await getEvent(created.event.id, store);
+    assert.strictEqual(stillApproved.status, 'approved');
+  });
 });
 
 describe('moderateEvent', () => {
@@ -266,6 +341,17 @@ describe('listVisibleEvents', () => {
 
     const visible = await listVisibleEvents({ username: 'submitter' }, store);
     assert.strictEqual(visible.length, 0);
+  });
+
+  it('keeps a cancelled event visible (flagged) rather than hiding it', async () => {
+    const store = createFakeStore();
+    const created = await createEvent(validPartial, addedBy, store);
+    const approved = await moderateEvent(created.event.id, 'approve', undefined, store);
+    await cancelEvent(approved.event, 'submitter', store);
+
+    const visible = await listVisibleEvents({ username: 'someone-else' }, store);
+    assert.strictEqual(visible.length, 1);
+    assert.strictEqual(visible[0].status, 'cancelled');
   });
 });
 

@@ -6,7 +6,8 @@
  *  - Kaupunki-ilmoitukset: city notification subscription picker
  *  - Suosikit: meetups the user has favourited
  *  - Miittini: every meetup the user has submitted while logged in, regardless
- *    of moderation status, each with a status chip and a delete button
+ *    of moderation status, each with a status chip, a cancel button (for
+ *    approved events), and a delete button
  *  - Kirjaudu ulos button
  */
 
@@ -14,7 +15,7 @@ import { useState, useEffect } from 'react';
 import { CITIES } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { MeetupCard, Sheet, hexA } from './ui.jsx';
+import { MeetupCard, Sheet, ConfirmSheet, hexA } from './ui.jsx';
 import { IconArrowUpRight, IconClose, IconCheck, IconClock } from './icons.jsx';
 
 /**
@@ -46,6 +47,9 @@ export function ProfileSheet({
   const [refreshTick, setRefreshTick] = useState(0);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+  const [cancelTargetId, setCancelTargetId] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
 
   // Own submissions regardless of moderation status (unlike `events`, which
   // hides other users' pending items and everyone's rejected ones). Fetched
@@ -89,6 +93,21 @@ export function ProfileSheet({
     }
     setRefreshTick((n) => n + 1);
     onDelete(id);
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelTargetId) return;
+    setCancelling(true);
+    setCancelError(null);
+    const result = await EventStore.cancel(cancelTargetId);
+    setCancelling(false);
+    if (!result.ok) {
+      setCancelError(result.error);
+      return;
+    }
+    setCancelTargetId(null);
+    setRefreshTick((n) => n + 1);
+    onDelete(cancelTargetId);
   }
 
   return (
@@ -269,6 +288,17 @@ export function ProfileSheet({
                     >
                       Muokkaa apurilla
                     </button>
+                    {m.status === 'approved' && (
+                      <button
+                        onClick={() => {
+                          setCancelError(null);
+                          setCancelTargetId(m.id);
+                        }}
+                        style={actionBtn(tc, true)}
+                      >
+                        Peruuta
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(m.id)}
                       disabled={deletingId === m.id}
@@ -312,6 +342,19 @@ export function ProfileSheet({
           Kirjaudu ulos
         </button>
       </div>
+
+      <ConfirmSheet
+        open={!!cancelTargetId}
+        onClose={() => setCancelTargetId(null)}
+        onConfirm={handleConfirmCancel}
+        t={tc}
+        label="Vahvista miitin peruutus"
+        title="Peruuta tämä miitti?"
+        message="Miitti merkitään perutuksi ja jää näkyviin yliviivattuna. Peruutuksesta julkaistaan ilmoitus Threadsissa."
+        error={cancelError}
+        confirmLabel="Peruuta miitti"
+        busy={cancelling}
+      />
     </Sheet>
   );
 }
@@ -399,11 +442,12 @@ const STATUS_META = {
   approved: { label: 'Julkaistu listalla', color: '#1f8a5b', Icon: IconCheck },
   pending: { label: 'Odottaa hyväksyntää', color: null, Icon: IconClock },
   rejected: { label: 'Hylätty ylläpidossa', color: '#C2483F', Icon: IconClose },
+  cancelled: { label: 'Peruttu', color: '#C2483F', Icon: IconClose },
 };
 
 /**
  * Small badge showing a submission's moderation status.
- * @param {object} props - Props: status ('approved'|'pending'|'rejected'), tc (card theme).
+ * @param {object} props - Props: status ('approved'|'pending'|'rejected'|'cancelled'), tc (card theme).
  */
 function StatusChip({ status, tc }) {
   const meta = STATUS_META[status] ?? STATUS_META.pending;

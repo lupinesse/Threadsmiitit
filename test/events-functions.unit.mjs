@@ -14,6 +14,7 @@ import { createHandler as createEventsHandler } from '../netlify/functions/event
 import { createHandler as createMineHandler } from '../netlify/functions/events-mine.js';
 import { createHandler as createPendingHandler } from '../netlify/functions/events-pending.js';
 import { createHandler as createModerateHandler } from '../netlify/functions/events-moderate.js';
+import { createHandler as createCancelHandler } from '../netlify/functions/events-cancel.js';
 import { createFakeStore } from './fakes/blobsStore.mjs';
 
 const SECRET = 'test-secret';
@@ -326,5 +327,119 @@ describe('POST /api/events/moderate', () => {
       })
     );
     assert.strictEqual(res.status, 400);
+  });
+});
+
+const other = {
+  id: 'u3',
+  username: 'other',
+  avatarUrl: null,
+  profileUrl: 'https://www.threads.com/@other',
+};
+
+/**
+ * Submits and approves an event, returning the approved event body.
+ * @param {import('../netlify/functions/lib/eventsStore.mjs').BlobStoreLike} store
+ * @returns {Promise<object>}
+ */
+async function createApprovedEvent(store) {
+  const created = await createEventsHandler(store)(
+    req('/api/events', { method: 'POST', user: submitter, body: validPartial })
+  );
+  const { event } = await created.json();
+  const approved = await createModerateHandler(store)(
+    req(`/api/events/moderate?id=${event.id}`, {
+      method: 'POST',
+      user: admin,
+      body: { action: 'approve' },
+    })
+  );
+  return (await approved.json()).event;
+}
+
+describe('POST /api/events/cancel', () => {
+  it('lets the owner cancel their own approved event', async () => {
+    const store = createFakeStore();
+    const event = await createApprovedEvent(store);
+
+    const res = await createCancelHandler(store)(
+      req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: submitter })
+    );
+    assert.strictEqual(res.status, 200);
+    const { event: cancelled } = await res.json();
+    assert.strictEqual(cancelled.status, 'cancelled');
+    assert.strictEqual(cancelled.cancelledBy, 'submitter');
+  });
+
+  it("lets an admin cancel someone else's approved event", async () => {
+    const store = createFakeStore();
+    const event = await createApprovedEvent(store);
+
+    const res = await createCancelHandler(store)(
+      req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: admin })
+    );
+    assert.strictEqual(res.status, 200);
+    const { event: cancelled } = await res.json();
+    assert.strictEqual(cancelled.status, 'cancelled');
+    assert.strictEqual(cancelled.cancelledBy, 'lupinesse');
+  });
+
+  it('returns 403 for a non-owner, non-admin caller', async () => {
+    const store = createFakeStore();
+    const event = await createApprovedEvent(store);
+
+    const res = await createCancelHandler(store)(
+      req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: other })
+    );
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('returns 401 for an unauthenticated caller', async () => {
+    const store = createFakeStore();
+    const event = await createApprovedEvent(store);
+
+    const res = await createCancelHandler(store)(
+      req(`/api/events/cancel?id=${event.id}`, { method: 'POST' })
+    );
+    assert.strictEqual(res.status, 401);
+  });
+
+  it('returns 400 when id is missing', async () => {
+    const store = createFakeStore();
+    const res = await createCancelHandler(store)(
+      req('/api/events/cancel', { method: 'POST', user: submitter })
+    );
+    assert.strictEqual(res.status, 400);
+  });
+
+  it('returns 404 for an unknown id', async () => {
+    const store = createFakeStore();
+    const res = await createCancelHandler(store)(
+      req('/api/events/cancel?id=zzzz', { method: 'POST', user: submitter })
+    );
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('returns 400 when the event is not currently approved', async () => {
+    const store = createFakeStore();
+    const created = await createEventsHandler(store)(
+      req('/api/events', { method: 'POST', user: submitter, body: validPartial })
+    );
+    const { event } = await created.json();
+
+    const res = await createCancelHandler(store)(
+      req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: submitter })
+    );
+    assert.strictEqual(res.status, 400);
+  });
+
+  it('returns 405 for a non-POST method', async () => {
+    const store = createFakeStore();
+    const event = await createApprovedEvent(store);
+
+    const res = await createCancelHandler(store)(
+      req(`/api/events/cancel?id=${event.id}`, { method: 'GET', user: submitter })
+    );
+    assert.strictEqual(res.status, 405);
   });
 });
