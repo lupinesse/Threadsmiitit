@@ -18,7 +18,8 @@
     "format:check": "prettier --check \"src/**/*\" \"*.js\" \"test/**/*.{cjs,mjs}\" \".github/scripts/**/*.mjs\" \"netlify/functions/**/*.{js,mjs}\" \"shared/**/*.mjs\"",
     "prepare": "husky",
     "docs": "jsdoc -c jsdoc.config.json",
-    "clean-branches": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-branches.ps1"
+    "clean-branches": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-branches.ps1",
+    "sentry:triage": "node .github/scripts/sentry-triage.mjs"
   },
   "lint-staged": {
     "src/**/*.{js,jsx}": [

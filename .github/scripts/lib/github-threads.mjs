@@ -405,6 +405,93 @@ export async function postInlineComment({
 }
 
 /**
+ * Find the most recent open issue whose body contains `marker`, searching
+ * via the GitHub search API rather than paginating every open issue.
+ *
+ * @param {object} params
+ * @param {string} params.token
+ * @param {string} params.owner
+ * @param {string} params.repo
+ * @param {string} params.marker - Substring that uniquely identifies this tracking issue.
+ * @returns {Promise<object|null>} The issue, or `null` if none matches.
+ */
+export async function findOpenIssueByMarker({ token, owner, repo, marker }) {
+  const query = `repo:${owner}/${repo} in:body "${marker}" is:issue is:open`;
+  const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}`, {
+    headers: ghHeaders(token),
+  });
+  if (!response.ok) throw new Error(`Search issues API ${response.status}: ${await response.text()}`);
+  const data = await response.json();
+  return data.items?.[0] ?? null;
+}
+
+/**
+ * Find the open tracking issue identified by `marker` and replace its
+ * title/body, or create a new one if none is open yet. Used to keep a single
+ * live issue per recurring automated report rather than accumulating one per
+ * run.
+ *
+ * @param {object} params
+ * @param {string} params.token
+ * @param {string} params.owner
+ * @param {string} params.repo
+ * @param {string} params.marker
+ * @param {string} params.title
+ * @param {string} params.body
+ * @param {string[]} [params.labels]
+ * @returns {Promise<{ issue: object, created: boolean }>}
+ */
+export async function upsertTrackingIssue({ token, owner, repo, marker, title, body, labels = [] }) {
+  const existing = await findOpenIssueByMarker({ token, owner, repo, marker });
+
+  if (existing) {
+    const patchResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${existing.number}`, {
+      method: 'PATCH',
+      headers: ghHeaders(token),
+      body: JSON.stringify({ title, body }),
+    });
+    if (!patchResp.ok) throw new Error(`Patch issue API ${patchResp.status}: ${await patchResp.text()}`);
+    return { issue: await patchResp.json(), created: false };
+  }
+
+  const postResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+    method: 'POST',
+    headers: ghHeaders(token),
+    body: JSON.stringify({ title, body, labels }),
+  });
+  if (!postResp.ok) throw new Error(`Create issue API ${postResp.status}: ${await postResp.text()}`);
+  return { issue: await postResp.json(), created: true };
+}
+
+/**
+ * Close an open issue with a closing comment explaining why.
+ *
+ * @param {object} params
+ * @param {string} params.token
+ * @param {string} params.owner
+ * @param {string} params.repo
+ * @param {number} params.issueNumber
+ * @param {string} params.comment
+ * @returns {Promise<object>}
+ */
+export async function closeIssueWithComment({ token, owner, repo, issueNumber, comment }) {
+  const commentResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`, {
+    method: 'POST',
+    headers: ghHeaders(token),
+    body: JSON.stringify({ body: comment }),
+  });
+  if (!commentResp.ok) throw new Error(`Comment API ${commentResp.status}: ${await commentResp.text()}`);
+
+  const closeResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`, {
+    method: 'PATCH',
+    headers: ghHeaders(token),
+    body: JSON.stringify({ state: 'closed' }),
+  });
+  if (!closeResp.ok) throw new Error(`Close issue API ${closeResp.status}: ${await closeResp.text()}`);
+  return closeResp.json();
+}
+
+/**
  * Build a compact, indexed summary of existing threads for an AI prompt.
  * Each entry includes index, path:line, author, resolution state, finding
  * body, and any replies — enough for the model to decide whether a new

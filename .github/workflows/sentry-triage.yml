@@ -1,0 +1,76 @@
+name: Sentry Triage
+
+# Sweeps unresolved Sentry issues daily. Issues matching a known-noise
+# pattern (sentry-triage.config.json) are resolved automatically. Everything
+# else is listed in a single tracking GitHub issue (label: sentry-triage) for
+# a maintainer or agent to pick up through the normal PR workflow — this
+# workflow never writes code or resolves a real bug on its own.
+#
+# workflow_dispatch lets a maintainer re-run this on demand.
+#
+# Required secrets:
+#   SENTRY_AUTH_TOKEN   Sentry internal integration token (Issues: Read & Write)
+#
+# Required variables (Settings > Actions > Variables):
+#   SENTRY_ORG          Sentry organization slug
+#   SENTRY_PROJECT      Sentry project slug
+#
+# Optional variables:
+#   SENTRY_API_HOST     Sentry API host, default 'sentry.io'. Set this for
+#                       data-residency orgs (e.g. 'de.sentry.io' for EU) —
+#                       see the org's Settings > General > "Data Storage Region".
+#
+# Required permission:
+#   Settings > Actions > General > Workflow permissions > Read and write
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # once daily; avoids the top-of-hour rush other workflows tend to schedule on
+  workflow_dispatch: {}
+
+concurrency:
+  group: sentry-triage
+  cancel-in-progress: false
+
+jobs:
+  sentry-triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
+            echo "::warning::SENTRY_AUTH_TOKEN, SENTRY_ORG, or SENTRY_PROJECT not configured — skipping triage."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out repository
+        if: steps.check-secrets.outputs.ok == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        if: steps.check-secrets.outputs.ok == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Run Sentry triage
+        if: steps.check-secrets.outputs.ok == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_API_HOST: ${{ vars.SENTRY_API_HOST }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .github/scripts/sentry-triage.mjs
