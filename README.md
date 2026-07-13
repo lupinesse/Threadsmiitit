@@ -66,6 +66,10 @@ The key is read **server-side** only — never exposed in the browser bundle. In
 
 The `netlify/functions/auth-*.js` functions implement Threads (Meta) OAuth login. A successful login mints a signed, httpOnly `tm_session` cookie (see `netlify/functions/lib/session.mjs`); the client learns who is signed in via `GET /api/auth/whoami`, never by reading the cookie itself. See [.env.example](.env.example) for the full list of environment variables (`THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET`, `THREADS_REDIRECT_URI`, `SESSION_SECRET`, `ALLOWED_ORIGIN`) needed to enable it locally.
 
+#### Threads broadcast bot (foundation only — not yet posting)
+
+A bot account announces meetup cancellations and new approvals on its own Threads profile. This is scaffolding only so far — `netlify/functions/lib/threadsClient.mjs` (Threads Graph API calls), `botState.mjs` (Blobs-backed idempotency ledger + token store), `botConfig.mjs` (safety switches and timing constants), and `shared/postTemplates.mjs` (pure post-copy renderers) exist and are unit tested, plus a weekly `bot-token-refresh.js` scheduled function and a one-time `scripts/seed-bot-token.mjs` setup script — but no trigger actually calls `publish()` yet. `BOT_ENABLED` defaults `false` and `BOT_DRY_RUN` defaults `true`, so none of this can post for real even once wired up, until both are explicitly flipped. See [.env.example](.env.example) for `THREADS_BOT_USER_ID`/`BOT_ENABLED`/`BOT_DRY_RUN`/`NETLIFY_SITE_ID`/`NETLIFY_API_TOKEN`.
+
 #### Error monitoring (optional)
 
 Set `VITE_SENTRY_DSN` (browser) and/or `SENTRY_DSN` (Netlify Functions) to report uncaught errors to [Sentry](https://sentry.io). Both are unset by default — the app and functions run exactly as before with no external calls. See `src/lib/sentry.js` and `netlify/functions/lib/sentry.mjs`.
