@@ -1,0 +1,89 @@
+name: ChatGPT Issue Review
+
+# Reviews new/edited issues for clarity. When ChatGPT judges an issue too
+# terse or inconclusive, it rewrites the title/body in place and leaves an
+# audit comment showing the original text and its reasoning.
+#
+# Loop prevention: skipped whenever the triggering actor is a bot (e.g. this
+# workflow's own edit via the ChatGPT Reviewer App), so the "edited" trigger
+# never re-fires on its own edits.
+#
+# workflow_dispatch lets a maintainer re-run this against an existing issue
+# on demand (e.g. a backfill pass over already-open issues).
+#
+# Required secrets:
+#   OPENAI_API_KEY               — OpenAI API key
+#   CHATGPT_REVIEWER_APP_ID      — Client ID of the "ChatGPT Reviewer" GitHub App
+#   CHATGPT_REVIEWER_PRIVATE_KEY — .pem private key of the same App
+#
+# Required permission:
+#   Settings > Actions > General > Workflow permissions > Read and write
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to review'
+        required: true
+        type: number
+
+concurrency:
+  group: chatgpt-issue-review-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: true
+
+jobs:
+  chatgpt-issue-review:
+    # Assumes edits made via the ChatGPT Reviewer App token report sender.type
+    # == 'Bot'. If a future run ever shows a non-bot sender for the app's own
+    # edit, this stops preventing the self-triggered loop — check this first
+    # if the workflow starts firing repeatedly on the same issue.
+    if: github.event_name == 'workflow_dispatch' || github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CHATGPT_APP_ID: ${{ secrets.CHATGPT_REVIEWER_APP_ID }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$CHATGPT_APP_ID" ]; then
+            echo "::warning::OPENAI_API_KEY or CHATGPT_REVIEWER_APP_ID not configured — skipping issue review."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out repository
+        if: steps.check-secrets.outputs.ok == 'true'
+        uses: actions/checkout@v7
+
+      - name: Mint ChatGPT Reviewer App token
+        id: chatgpt-token
+        if: steps.check-secrets.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.CHATGPT_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.CHATGPT_REVIEWER_PRIVATE_KEY }}
+
+      - name: Set up Node.js
+        if: steps.check-secrets.outputs.ok == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Review issue with ChatGPT
+        if: steps.check-secrets.outputs.ok == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ steps.chatgpt-token.outputs.token || github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          MODEL: gpt-4o-2024-08-06
+          MAX_TOKENS: '2048'
+        run: node .github/scripts/chatgpt-issue-review.mjs
