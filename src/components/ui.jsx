@@ -434,11 +434,13 @@ export function DetailRow({ icon, label, sub, t }) {
 /**
  * Full meetup detail view, rendered inside a Sheet.
  * @param {object} props - Props: m (meetup or null), t (theme), fav (boolean), onFav, onClose (optional).
+ * @param {boolean} [props.showFav] - Whether to render the favourite toggle. Set to `false` for
+ *   unsaved drafts (e.g. the add-meetup preview step), which have no stable id/fav state yet.
  * @param {boolean} [props.showAddedBy] - Whether to render the "Lisätty sovelluksessa" section
  *   showing who submitted the meetup (`m.addedBy`), as opposed to who is organising it (`m.org`).
  *   Submitter identity is moderation-only information — only admin views should pass `true`.
  */
-export function MeetupDetail({ m, t, fav, onFav, onClose, showAddedBy = false }) {
+export function MeetupDetail({ m, t, fav, onFav, onClose, showFav = true, showAddedBy = false }) {
   if (!m) return null;
   const days = DH.daysBetween(DH.todayStr(), m.date);
   const when =
@@ -688,26 +690,28 @@ export function MeetupDetail({ m, t, fav, onFav, onClose, showAddedBy = false })
           </div>
         )}
         {hasPost && <CopyButton url={m.url} t={t} />}
-        <button
-          aria-label={fav ? 'Poista suosikeista' : 'Lisää suosikiksi'}
-          aria-pressed={fav}
-          onClick={onFav}
-          style={{
-            all: 'unset',
-            cursor: 'pointer',
-            boxSizing: 'border-box',
-            width: 52,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: t.radiusPill,
-            border: `1px solid ${fav ? t.brand : t.line}`,
-            color: fav ? t.brand : t.ink,
-            background: fav ? hexA(t.brand, 0.1) : t.surface,
-          }}
-        >
-          <IconHeart size={20} fill={fav ? t.brand : 'none'} />
-        </button>
+        {showFav && (
+          <button
+            aria-label={fav ? 'Poista suosikeista' : 'Lisää suosikiksi'}
+            aria-pressed={fav}
+            onClick={onFav}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              width: 52,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: t.radiusPill,
+              border: `1px solid ${fav ? t.brand : t.line}`,
+              color: fav ? t.brand : t.ink,
+              background: fav ? hexA(t.brand, 0.1) : t.surface,
+            }}
+          >
+            <IconHeart size={20} fill={fav ? t.brand : 'none'} />
+          </button>
+        )}
       </div>
     </div>
   );
