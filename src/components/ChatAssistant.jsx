@@ -429,7 +429,8 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
               display: 'flex',
               gap: 8,
               overflowX: 'auto',
-              padding: '0 16px 10px',
+              // Top padding reserves room for the :focus-visible ring so overflow-x:auto doesn't clip it.
+              padding: '4px 16px 10px',
               flexShrink: 0,
               scrollbarWidth: 'none',
             }}
