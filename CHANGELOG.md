@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/api/chat` now logs the effective config (allowed origin, dev-mode flag, whether the Anthropic key is configured — never the key itself) and the origin-check outcome on each request.
 
 ### Fixed
+- `MeetupCard`/`MeetupDetail` showed the Threads handle twice when a meetup's organiser and submitter were the same person — the submitter (`m.addedBy`) is now only shown behind a `showAddedBy` prop, passed from the admin moderation views only; regular users see just the organiser (`m.org`).
 - `npm run lint`/`format` never actually covered `netlify/functions/**/*.mjs` (only `.js`), despite `eslint.config.js` having a dedicated rule block for the directory; `netlify/functions/lib/*.mjs` had undetected `no-undef` errors as a result.
 - `jsdoc.config.json`'s `includePattern` only matched `.js`, so every `.jsx` React component was silently excluded from generated documentation.
 - `ScreenLisaa`'s new login gate called its `useState` hooks after the gate's early return; if `user` ever flips back to logged-in on the same mounted instance (the add form was open, `user` briefly dropped to `null`, then came back), React silently discarded the fiber's hook state and the form reset to blank instead of keeping what the user had typed. All hooks now run unconditionally before the gate.
