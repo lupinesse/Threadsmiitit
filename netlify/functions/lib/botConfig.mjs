@@ -42,3 +42,11 @@ export const WEEKLY_TARGET_HOUR = 20;
  * is harmless for a once-a-day digest, so no timezone gate is needed here.
  */
 export const DAILY_DIGEST_HOUR_UTC = 8;
+
+/**
+ * Max cancellations announced per `bot-cancellations.js` run. The function
+ * runs every 5 minutes, so a run under this cap comfortably fits the 30 s
+ * scheduled-function budget; any remainder is simply picked up by the next
+ * tick rather than risking a timeout mid-batch.
+ */
+export const CANCELLATION_BATCH_SIZE = 5;
