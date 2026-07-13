@@ -77,6 +77,33 @@ describe('createEvent', () => {
     assert.match(result.error, /url/);
   });
 
+  it('stores a trimmed, length-capped catSuggestion alongside the resolved cat', async () => {
+    const store = createFakeStore();
+    const longSuggestion = '  ' + 'a'.repeat(60) + '  ';
+    const result = await createEvent(
+      { ...validPartial, catSuggestion: longSuggestion },
+      addedBy,
+      store
+    );
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.event.cat, 'yleinen');
+    assert.strictEqual(result.event.catSuggestion, 'a'.repeat(40));
+  });
+
+  it('omits catSuggestion entirely when not supplied', async () => {
+    const store = createFakeStore();
+    const result = await createEvent(validPartial, addedBy, store);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual('catSuggestion' in result.event, false);
+  });
+
+  it('omits catSuggestion when it is only whitespace', async () => {
+    const store = createFakeStore();
+    const result = await createEvent({ ...validPartial, catSuggestion: '   ' }, addedBy, store);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual('catSuggestion' in result.event, false);
+  });
+
   it('generates unique ids across repeated calls', async () => {
     const store = createFakeStore();
     const a = await createEvent(validPartial, addedBy, store);

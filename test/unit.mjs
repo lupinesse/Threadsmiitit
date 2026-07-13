@@ -33,6 +33,7 @@ globalThis.localStorage = {
 // ── DH helpers ──────────────────────────────────────────────────────────────
 
 const { DH, CITIES, CATEGORIES, MEETUPS } = await import('../src/data.js');
+const { normCatSuggestion, CAT_SUGGESTION_MAX_LEN } = await import('../shared/eventFields.mjs');
 
 describe('DH.parse', () => {
   it('parses YYYY-MM-DD to a local Date', () => {
@@ -303,6 +304,49 @@ describe('EventStore.normalize', () => {
       url: 'https://notthreads.com/foo',
     });
     assert.strictEqual(result.url, '');
+  });
+
+  it('passes through a trimmed catSuggestion without resolving it against CATEGORIES', () => {
+    const result = EventStore.normalize({
+      title: 'T',
+      date: '2026-06-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      catSuggestion: '  Lautapelit  ',
+      org: '@x',
+      url: '',
+    });
+    assert.strictEqual(result.catSuggestion, 'Lautapelit');
+    assert.strictEqual(result.cat, 'yleinen');
+  });
+
+  it('omits catSuggestion when not supplied', () => {
+    const result = EventStore.normalize({
+      title: 'T',
+      date: '2026-06-01',
+      city: 'helsinki',
+      cat: 'yleinen',
+      org: '@x',
+      url: '',
+    });
+    assert.strictEqual('catSuggestion' in result, false);
+  });
+});
+
+describe('normCatSuggestion', () => {
+  it('trims surrounding whitespace', () => {
+    assert.strictEqual(normCatSuggestion('  Lautapelit  '), 'Lautapelit');
+  });
+
+  it('caps length at CAT_SUGGESTION_MAX_LEN', () => {
+    const long = 'a'.repeat(60);
+    assert.strictEqual(normCatSuggestion(long).length, CAT_SUGGESTION_MAX_LEN);
+  });
+
+  it('returns empty string for missing input', () => {
+    assert.strictEqual(normCatSuggestion(undefined), '');
+    assert.strictEqual(normCatSuggestion(''), '');
+    assert.strictEqual(normCatSuggestion('   '), '');
   });
 });
 

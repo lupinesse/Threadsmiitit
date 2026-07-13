@@ -94,6 +94,21 @@ function AdminCard({ m, t, onApprove, onReject, busy }) {
             </span>
           )}
         </div>
+        {m.catSuggestion && (
+          <div
+            style={{
+              padding: '8px 11px',
+              borderRadius: t.radiusSm,
+              background: hexA(t.brand, 0.09),
+              border: `1px solid ${hexA(t.brand, 0.22)}`,
+              fontSize: 12.5,
+              color: t.ink,
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Ehdotettu laji:</strong> {m.catSuggestion}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={onReject}
