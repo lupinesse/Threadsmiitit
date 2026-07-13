@@ -83,13 +83,21 @@ export function createHandler({
       if (dryRun) {
         console.log(`[bot-cancellations] DRY RUN — would post: ${text}`);
       } else {
-        await publish({
-          accessToken: token.accessToken,
-          threadsUserId: THREADS_BOT_USER_ID,
-          text,
-          fetchImpl,
-        });
-        console.log(`[bot-cancellations] announced cancellation of event ${event.id}`);
+        try {
+          await publish({
+            accessToken: token.accessToken,
+            threadsUserId: THREADS_BOT_USER_ID,
+            text,
+            fetchImpl,
+          });
+          console.log(`[bot-cancellations] announced cancellation of event ${event.id}`);
+        } catch (err) {
+          // Skip only this event — leaving it unmarked means the next tick
+          // retries it — rather than aborting the whole batch on one
+          // failure and leaving every other pending event unattempted too.
+          console.error(`[bot-cancellations] failed to announce event ${event.id}`, err);
+          continue;
+        }
       }
       state = markAnnounced(state, 'cancelled', event.id);
       await putBotState(state, botStateStore);

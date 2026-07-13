@@ -182,4 +182,27 @@ describe('bot-weekly', () => {
     const state = await getBotState(botStateStore);
     assert.strictEqual(state.lastWeeklyTargetSunday, null);
   });
+
+  it('propagates a publish failure and does not record lastWeeklyTargetSunday', async () => {
+    const eventsStore = createFakeStore();
+    const botStateStore = createFakeStore();
+    const botTokenStore = createFakeStore();
+    await seedEvent(eventsStore, { id: 'a', date: '2026-06-16' });
+    await putBotToken({ accessToken: 'tok', expiresAt: 1 }, botTokenStore);
+    const handler = createHandler({
+      eventsStore,
+      botStateStore,
+      botTokenStore,
+      botEnabled: true,
+      dryRun: false,
+      fetchImpl: async () => {
+        throw new Error('network blip');
+      },
+      now: () => SUMMER_SUNDAY_20_HELSINKI,
+    });
+
+    await assert.rejects(() => handler(new Request('https://example.com')), /network blip/);
+    const state = await getBotState(botStateStore);
+    assert.strictEqual(state.lastWeeklyTargetSunday, null);
+  });
 });

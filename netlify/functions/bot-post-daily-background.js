@@ -94,14 +94,22 @@ export function createHandler({
       if (dryRun) {
         console.log(`[bot-post-daily-background] DRY RUN — would reply: ${replyText}`);
       } else {
-        await publish({
-          accessToken: token.accessToken,
-          threadsUserId: THREADS_BOT_USER_ID,
-          text: replyText,
-          replyToId: rootId,
-          fetchImpl,
-        });
-        console.log(`[bot-post-daily-background] announced new event ${event.id}`);
+        try {
+          await publish({
+            accessToken: token.accessToken,
+            threadsUserId: THREADS_BOT_USER_ID,
+            text: replyText,
+            replyToId: rootId,
+            fetchImpl,
+          });
+          console.log(`[bot-post-daily-background] announced new event ${event.id}`);
+        } catch (err) {
+          // Skip only this reply — leaving it unmarked means the next
+          // daily run retries it — rather than aborting the rest of the
+          // thread because one reply's post call failed.
+          console.error(`[bot-post-daily-background] failed to announce event ${event.id}`, err);
+          continue;
+        }
       }
       state = markAnnounced(state, 'new', event.id);
       await putBotState(state, botStateStore);

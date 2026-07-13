@@ -80,16 +80,26 @@ export function createHandler({
         console.error('[bot-weekly] BOT_ENABLED but no token seeded — skipping this run');
         return new Response(null, { status: 204 });
       }
-      await publish({
-        accessToken: token.accessToken,
-        threadsUserId: THREADS_BOT_USER_ID,
-        text,
-        attachmentText,
-        fetchImpl,
-      });
-      console.log(
-        `[bot-weekly] posted weekly summary for ${start}..${end} (${upcoming.length} events)`
-      );
+      try {
+        await publish({
+          accessToken: token.accessToken,
+          threadsUserId: THREADS_BOT_USER_ID,
+          text,
+          attachmentText,
+          fetchImpl,
+        });
+        console.log(
+          `[bot-weekly] posted weekly summary for ${start}..${end} (${upcoming.length} events)`
+        );
+      } catch (err) {
+        // lastWeeklyTargetSunday is only recorded below, after this
+        // succeeds — a failure here means no retry until next Sunday
+        // (the other candidate UTC tick today will already have the
+        // wrong Helsinki hour), so this is worth a clearly-labelled log
+        // even though withSentry's own reporting will also catch it.
+        console.error(`[bot-weekly] failed to post the weekly summary for ${start}..${end}`, err);
+        throw err;
+      }
     }
 
     await putBotState({ ...state, lastWeeklyTargetSunday: today }, botStateStore);

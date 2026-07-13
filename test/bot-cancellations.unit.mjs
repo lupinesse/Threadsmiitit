@@ -169,4 +169,34 @@ describe('bot-cancellations', () => {
     const state = await getBotState(botStateStore);
     assert.deepStrictEqual(state.lastSnapshot, { a: 'approved' });
   });
+
+  it('skips only the event whose post fails, still announcing the rest of the batch', async () => {
+    const eventsStore = createFakeStore();
+    const botStateStore = createFakeStore();
+    const botTokenStore = createFakeStore();
+    await seedEvent(eventsStore, { id: 'a', title: 'Event A' });
+    await seedEvent(eventsStore, { id: 'b', title: 'Event B' });
+    await seedEvent(eventsStore, { id: 'c', title: 'Event C' });
+    await putBotToken({ accessToken: 'tok', expiresAt: 1 }, botTokenStore);
+    // 'b' fails its container-create call; 'a' and 'c' succeed.
+    const fetchImpl = async (url, opts) => {
+      const body = new URLSearchParams(opts.body);
+      if (String(url).endsWith('/threads') && body.get('text')?.includes('Event B')) {
+        throw new Error('network blip');
+      }
+      return { ok: true, json: async () => ({ id: 'posted-1' }) };
+    };
+    const handler = createHandler({
+      eventsStore,
+      botStateStore,
+      botTokenStore,
+      botEnabled: true,
+      dryRun: false,
+      fetchImpl,
+    });
+
+    await handler(new Request('https://example.com'));
+    const state = await getBotState(botStateStore);
+    assert.deepStrictEqual(state.announced.cancelled.sort(), ['a', 'c']);
+  });
 });
