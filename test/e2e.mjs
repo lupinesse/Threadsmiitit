@@ -224,7 +224,9 @@ describe('AppErrorBoundary', () => {
     }
     const consoleError = mock.method(console, 'error', () => {});
 
-    const { unmount } = render(React.createElement(AppErrorBoundary, null, React.createElement(Boom)));
+    const { unmount } = render(
+      React.createElement(AppErrorBoundary, null, React.createElement(Boom))
+    );
 
     assert.ok(screen.getByText('Jokin meni pieleen. Yritä päivittää sivu.'));
     unmount();
