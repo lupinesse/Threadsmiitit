@@ -20,10 +20,12 @@ const STORE_NAME = 'events';
  * @typedef {object} StoredEvent
  * @property {string} id
  * @property {true} user
- * @property {'pending'|'approved'|'rejected'} status
+ * @property {'pending'|'approved'|'rejected'|'cancelled'} status
  * @property {number} submitted - Epoch ms.
  * @property {number} [reviewedAt] - Epoch ms.
  * @property {string} [rejectReason]
+ * @property {number} [cancelledAt] - Epoch ms.
+ * @property {string} [cancelledBy] - Username of whoever cancelled it (owner or admin).
  * @property {{id:string, username:string, avatarUrl:string|null, profileUrl:string}} addedBy
  * @property {string} title
  * @property {string} date - YYYY-MM-DD.
@@ -117,10 +119,14 @@ export async function listAllEvents(store) {
 }
 
 /**
- * Events visible in the public feed: every approved event, plus the given
- * user's own pending submissions (shown only to their submitter while
- * awaiting review). Rejected events and other users' pending submissions are
- * never included — mirrors the old client-side `EventStore.all()` filter.
+ * Events visible in the public feed: every approved or cancelled event, plus
+ * the given user's own pending submissions (shown only to their submitter
+ * while awaiting review). Cancelled events stay visible (flagged, not
+ * hidden) so people who saved a meetup can see it's off, rather than have it
+ * silently vanish — flip this to `e.status === 'approved'` only if that
+ * turns out to be the wrong call. Rejected events and other users' pending
+ * submissions are never included — mirrors the old client-side
+ * `EventStore.all()` filter.
  * @param {object} opts
  * @param {string} [opts.username] - The requesting user's handle, if signed in.
  * @param {BlobStoreLike} [store]
@@ -129,7 +135,10 @@ export async function listAllEvents(store) {
 export async function listVisibleEvents({ username } = {}, store) {
   const all = await listAllEvents(store);
   return all.filter(
-    (e) => e.status === 'approved' || (e.status === 'pending' && e.addedBy?.username === username)
+    (e) =>
+      e.status === 'approved' ||
+      e.status === 'cancelled' ||
+      (e.status === 'pending' && e.addedBy?.username === username)
   );
 }
 
@@ -200,7 +209,9 @@ export async function createEvent(partial, addedBy, store) {
 /**
  * Edits an existing event. Preserves `id`, `submitted`, and `addedBy`.
  * Editing a previously-rejected event resets it to `pending` for re-review,
- * clearing `reviewedAt`/`rejectReason`.
+ * clearing `reviewedAt`/`rejectReason`. Refuses to edit a cancelled event —
+ * cancellation is terminal, so a cancelled event must never be revived back
+ * to `approved` via an edit.
  *
  * Takes the existing record directly rather than an id — callers (e.g. the
  * PATCH handler in events.js) already fetch it once to check ownership, so
@@ -212,6 +223,10 @@ export async function createEvent(partial, addedBy, store) {
  * @returns {Promise<{ok:true, event:StoredEvent}|{ok:false, error:string}>}
  */
 export async function updateEvent(existing, patch, store) {
+  if (existing.status === 'cancelled') {
+    return { ok: false, error: 'cancelled events cannot be edited' };
+  }
+
   const normalized = normalizeEvent({ ...existing, ...patch });
   if (!normalized.ok) return normalized;
 
@@ -254,6 +269,33 @@ export async function moderateEvent(id, action, reason, store) {
     status: action === 'approve' ? 'approved' : 'rejected',
     reviewedAt: Date.now(),
     ...(action === 'reject' && reason ? { rejectReason: String(reason).slice(0, 120) } : {}),
+  };
+  await putEvent(event, store);
+  return { ok: true, event };
+}
+
+/**
+ * Cancels an approved event. Unlike `deleteEvent`, this keeps the record —
+ * cancellation is the intent signal that disambiguates "this meetup is off"
+ * (still worth knowing about, and worth announcing) from "this row was a
+ * mistake" (a silent hard delete). Only allowed from `approved`; cancelling
+ * is terminal, so an event already `cancelled` (or any other status) is
+ * refused rather than re-cancelled.
+ * @param {StoredEvent} existing - The current record, already confirmed to exist.
+ * @param {string} actorUsername - Handle of whoever cancelled it (owner or admin).
+ * @param {BlobStoreLike} [store]
+ * @returns {Promise<{ok:true, event:StoredEvent}|{ok:false, error:string}>}
+ */
+export async function cancelEvent(existing, actorUsername, store) {
+  if (existing.status !== 'approved') {
+    return { ok: false, error: `cannot cancel an event with status "${existing.status}"` };
+  }
+
+  const event = {
+    ...existing,
+    status: 'cancelled',
+    cancelledAt: Date.now(),
+    cancelledBy: actorUsername,
   };
   await putEvent(event, store);
   return { ok: true, event };

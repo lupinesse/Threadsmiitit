@@ -307,6 +307,17 @@ async function remove(id) {
 }
 
 /**
+ * Cancels an approved event the caller owns or moderates. Unlike `remove()`,
+ * the record is kept (flagged `cancelled`) rather than deleted, and posts a
+ * public cancellation announcement.
+ * @param {string} id
+ * @returns {Promise<{ok:true, event:object}|{ok:false, error:string}>}
+ */
+async function cancel(id) {
+  return apiFetch(`/api/events/cancel?id=${encodeURIComponent(id)}`, { method: 'POST' });
+}
+
+/**
  * Approves a pending submission, publishing it to the public feed. Requires
  * an admin session.
  * @param {string} id
@@ -359,6 +370,7 @@ const EventStore = {
   add,
   edit,
   remove,
+  cancel,
   approve,
   reject,
   favKey,

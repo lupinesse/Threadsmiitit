@@ -11,7 +11,7 @@ import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
 import NotificationStore from './store/NotificationStore.js';
-import { MeetupDetail, Sheet, hexA } from './components/ui.jsx';
+import { MeetupDetail, Sheet, ConfirmSheet, hexA } from './components/ui.jsx';
 import { ProfileSheet } from './components/ProfileSheet.jsx';
 import { AdminInbox } from './components/AdminInbox.jsx';
 import { ChatAssistant } from './components/ChatAssistant.jsx';
@@ -114,6 +114,9 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
 
   // ── City notifications ─────────────────────────────────────────────
   const [notifPref, setNotifPref] = useState(() => NotificationStore.getPreference());
@@ -158,6 +161,26 @@ export default function App() {
 
   function openMeetup(m) {
     setSelected(m);
+  }
+
+  /**
+   * Cancels the currently-selected meetup (admin action from the detail
+   * sheet). Owner self-cancel lives in ProfileSheet's Miittini list instead,
+   * since that's the surface that already lists a user's own submissions.
+   */
+  async function confirmCancelSelected() {
+    if (!selected) return;
+    setCancelling(true);
+    setCancelError(null);
+    const result = await EventStore.cancel(selected.id);
+    setCancelling(false);
+    if (!result.ok) {
+      setCancelError(result.error);
+      return;
+    }
+    setCancelConfirmOpen(false);
+    setSelected(result.event);
+    refresh();
   }
 
   // Header label for the current screen.
@@ -584,8 +607,27 @@ export default function App() {
             onFav={() => selected && toggleFav(selected)}
             onClose={() => setSelected(null)}
             showAddedBy={isAdmin}
+            canCancel={isAdmin && selected?.status === 'approved'}
+            onCancel={() => {
+              setCancelError(null);
+              setCancelConfirmOpen(true);
+            }}
           />
         </Sheet>
+
+        {/* ── Cancel-meetup confirmation (admin, from detail sheet) ───── */}
+        <ConfirmSheet
+          open={cancelConfirmOpen}
+          onClose={() => setCancelConfirmOpen(false)}
+          onConfirm={confirmCancelSelected}
+          t={t.card}
+          label="Vahvista miitin peruutus"
+          title="Peruuta tämä miitti?"
+          message="Miitti merkitään perutuksi ja jää näkyviin yliviivattuna. Peruutuksesta julkaistaan ilmoitus Threadsissa."
+          error={cancelError}
+          confirmLabel="Peruuta miitti"
+          busy={cancelling}
+        />
 
         {/* ── Profile sheet ─────────────────────────────────────────── */}
         <ProfileSheet

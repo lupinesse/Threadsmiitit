@@ -216,6 +216,7 @@ export function DateLeaf({ date, cat, t }) {
  */
 export function MeetupCard({ m, t, onClick, dim = false, fav = false, showAddedBy = false }) {
   const pending = m.status === 'pending';
+  const cancelled = m.status === 'cancelled';
   return (
     <button
       onClick={onClick}
@@ -232,7 +233,7 @@ export function MeetupCard({ m, t, onClick, dim = false, fav = false, showAddedB
         background: t.bg ?? t.surface,
         border: pending ? `1px dashed ${t.line}` : `1px solid ${t.line}`,
         boxShadow: t.cardShadow,
-        opacity: dim ? 0.55 : pending ? 0.8 : 1,
+        opacity: dim || cancelled ? 0.55 : pending ? 0.8 : 1,
         fontFamily: 'inherit',
         textAlign: 'left',
       }}
@@ -295,6 +296,21 @@ export function MeetupCard({ m, t, onClick, dim = false, fav = false, showAddedB
               Odottaa hyväksyntää
             </span>
           )}
+          {cancelled && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: '#C2483F',
+                background: hexA('#C2483F', 0.1),
+                padding: '2px 7px',
+                borderRadius: 999,
+                flexShrink: 0,
+              }}
+            >
+              Peruttu
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -307,6 +323,7 @@ export function MeetupCard({ m, t, onClick, dim = false, fav = false, showAddedB
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            textDecoration: cancelled ? 'line-through' : 'none',
           }}
         >
           {m.title}
@@ -440,8 +457,19 @@ export function DetailRow({ icon, label, sub, t }) {
  *   showing who submitted the meetup (`m.addedBy`), as opposed to who is organising it (`m.org`).
  *   Submitter identity is moderation-only information — only admin views should pass `true`.
  */
-export function MeetupDetail({ m, t, fav, onFav, onClose, showFav = true, showAddedBy = false }) {
+export function MeetupDetail({
+  m,
+  t,
+  fav,
+  onFav,
+  onClose,
+  showFav = true,
+  showAddedBy = false,
+  canCancel = false,
+  onCancel,
+}) {
   if (!m) return null;
+  const cancelled = m.status === 'cancelled';
   const days = DH.daysBetween(DH.todayStr(), m.date);
   const when =
     days === 0 ? 'Tänään' : days === 1 ? 'Huomenna' : days > 0 ? `${days} päivän päästä` : 'Mennyt';
@@ -494,6 +522,25 @@ export function MeetupDetail({ m, t, fav, onFav, onClose, showFav = true, showAd
           </button>
         )}
       </div>
+      {cancelled && (
+        <div
+          role="status"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#C2483F',
+            background: hexA('#C2483F', 0.1),
+            padding: '4px 10px',
+            borderRadius: 999,
+            marginBottom: 10,
+          }}
+        >
+          <IconClose size={13} sw={2.4} /> Miitti on peruttu
+        </div>
+      )}
       <h2
         style={{
           margin: 0,
@@ -503,6 +550,7 @@ export function MeetupDetail({ m, t, fav, onFav, onClose, showFav = true, showAd
           lineHeight: 1.12,
           color: t.ink,
           letterSpacing: t.headSpacing,
+          textDecoration: cancelled ? 'line-through' : 'none',
         }}
       >
         {m.title}
@@ -690,6 +738,26 @@ export function MeetupDetail({ m, t, fav, onFav, onClose, showFav = true, showAd
           </div>
         )}
         {hasPost && <CopyButton url={m.url} t={t} />}
+        {canCancel && !cancelled && (
+          <button
+            onClick={onCancel}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              padding: '15px 16px',
+              borderRadius: t.radiusPill,
+              border: `1px solid ${hexA('#C2483F', 0.4)}`,
+              color: '#C2483F',
+              background: hexA('#C2483F', 0.06),
+              fontWeight: 700,
+              fontSize: 14,
+              fontFamily: t.fontBody,
+            }}
+          >
+            Peruuta miitti
+          </button>
+        )}
         {showFav && (
           <button
             aria-label={fav ? 'Poista suosikeista' : 'Lisää suosikiksi'}
@@ -788,5 +856,107 @@ export function Sheet({ open, onClose, t, label, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * Small confirmation dialog, built on `Sheet`. Used before irreversible or
+ * publicly-visible actions (e.g. cancelling a meetup posts a public Threads
+ * announcement) so a stray tap can't trigger them.
+ * @param {object} props
+ * @param {boolean} props.open
+ * @param {Function} props.onClose - Dismiss without confirming.
+ * @param {Function} props.onConfirm - Proceed with the action.
+ * @param {object} props.t - Theme token object (card tokens).
+ * @param {string} props.label - Accessible dialog name.
+ * @param {string} props.title - Heading shown in the dialog.
+ * @param {string} props.message - Explanatory body text.
+ * @param {string} [props.error] - If set, shown as an inline error below the message (e.g. a failed confirm attempt).
+ * @param {string} [props.confirmLabel='Vahvista']
+ * @param {boolean} [props.busy=false] - Disables the buttons while the action is in flight.
+ */
+export function ConfirmSheet({
+  open,
+  onClose,
+  onConfirm,
+  t,
+  label,
+  title,
+  message,
+  error,
+  confirmLabel = 'Vahvista',
+  busy = false,
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} t={t} label={label}>
+      <div style={{ padding: '4px 20px 28px' }}>
+        <h2
+          style={{
+            margin: '14px 0 8px',
+            fontFamily: t.fontHead,
+            fontWeight: t.headWeight,
+            fontSize: 19,
+            color: t.ink,
+            letterSpacing: t.headSpacing,
+          }}
+        >
+          {title}
+        </h2>
+        <p style={{ margin: '0 0 8px', fontSize: 13.5, lineHeight: 1.5, color: t.inkSoft }}>
+          {message}
+        </p>
+        {error && (
+          <p
+            role="alert"
+            style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#C2483F' }}
+          >
+            {error}
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            style={{
+              all: 'unset',
+              cursor: busy ? 'default' : 'pointer',
+              boxSizing: 'border-box',
+              flex: 1,
+              textAlign: 'center',
+              padding: '13px 16px',
+              borderRadius: t.radiusPill,
+              border: `1px solid ${t.line}`,
+              color: t.ink,
+              fontWeight: 600,
+              fontSize: 14.5,
+              fontFamily: 'inherit',
+              opacity: busy ? 0.5 : 1,
+            }}
+          >
+            Peruuta
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            style={{
+              all: 'unset',
+              cursor: busy ? 'default' : 'pointer',
+              boxSizing: 'border-box',
+              flex: 1,
+              textAlign: 'center',
+              padding: '13px 16px',
+              borderRadius: t.radiusPill,
+              background: hexA('#C2483F', busy ? 0.5 : 1),
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 14.5,
+              fontFamily: 'inherit',
+            }}
+          >
+            {busy ? 'Käsitellään…' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Sheet>
   );
 }
