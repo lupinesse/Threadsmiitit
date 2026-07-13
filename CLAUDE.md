@@ -170,8 +170,8 @@ Follow [Concurrent sessions — always use an isolated git worktree](#concurrent
 above — do not `git checkout -b` in the shared main working directory.
 ```bash
 git worktree add .claude/worktrees/issue-N-description -b fix/issue-N-description origin/main   # bug fixes and QA items
-git worktree add .claude/worktrees/description         -b feat/description         origin/main   # new features
-git worktree add .claude/worktrees/description         -b docs/description         origin/main   # documentation only
+git worktree add .claude/worktrees/feature-description  -b feat/feature-description origin/main   # new features
+git worktree add .claude/worktrees/docs-description     -b docs/docs-description    origin/main   # documentation only
 cd .claude/worktrees/<branch-name>
 ```
 
