@@ -154,6 +154,22 @@ describe('getBotToken / putBotToken', () => {
     assert.strictEqual(await getBotToken(store), null);
   });
 
+  it('warns when no token has been seeded, pointing at the seed script', async (t) => {
+    const warned = t.mock.method(console, 'warn', () => {});
+    const store = createFakeStore();
+    await getBotToken(store);
+    assert.strictEqual(warned.mock.calls.length, 1);
+    assert.match(warned.mock.calls[0].arguments[0], /seed-bot-token\.mjs/);
+  });
+
+  it('does not warn once a token has been seeded', async (t) => {
+    const warned = t.mock.method(console, 'warn', () => {});
+    const store = createFakeStore();
+    await putBotToken({ accessToken: 'tok', expiresAt: 1 }, store);
+    await getBotToken(store);
+    assert.strictEqual(warned.mock.calls.length, 0);
+  });
+
   it('round-trips a stored token', async () => {
     const store = createFakeStore();
     const token = { accessToken: 'tok-123', expiresAt: 1234567890 };

@@ -64,10 +64,15 @@ export async function publish({
   if (attachmentText) createParams.set('plaintext', attachmentText);
   if (replyToId) createParams.set('reply_to_id', replyToId);
 
-  const createResponse = await fetchImpl(`${GRAPH_BASE}/${threadsUserId}/threads`, {
-    method: 'POST',
-    body: createParams,
-  });
+  let createResponse;
+  try {
+    createResponse = await fetchImpl(`${GRAPH_BASE}/${threadsUserId}/threads`, {
+      method: 'POST',
+      body: createParams,
+    });
+  } catch (err) {
+    throw new Error(`Threads container create request failed: ${err.message}`, { cause: err });
+  }
   if (!createResponse.ok) {
     throw new Error(
       `Threads container create failed (${createResponse.status}): ${await safeErrorText(createResponse)}`
@@ -76,10 +81,15 @@ export async function publish({
   const { id: creationId } = await createResponse.json();
 
   const publishParams = new URLSearchParams({ creation_id: creationId, access_token: accessToken });
-  const publishResponse = await fetchImpl(`${GRAPH_BASE}/${threadsUserId}/threads_publish`, {
-    method: 'POST',
-    body: publishParams,
-  });
+  let publishResponse;
+  try {
+    publishResponse = await fetchImpl(`${GRAPH_BASE}/${threadsUserId}/threads_publish`, {
+      method: 'POST',
+      body: publishParams,
+    });
+  } catch (err) {
+    throw new Error(`Threads publish request failed: ${err.message}`, { cause: err });
+  }
   if (!publishResponse.ok) {
     throw new Error(
       `Threads publish failed (${publishResponse.status}): ${await safeErrorText(publishResponse)}`

@@ -196,7 +196,13 @@ export function updateSnapshot(state, events) {
  */
 export async function getBotToken(store) {
   const raw = await resolveSecretsStore(store).get(TOKEN_KEY);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) {
+    console.warn(
+      '[botState] no bot token found — run scripts/seed-bot-token.mjs to authorize the bot account'
+    );
+    return null;
+  }
+  return JSON.parse(raw);
 }
 
 /**

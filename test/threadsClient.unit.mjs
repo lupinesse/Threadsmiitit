@@ -91,6 +91,29 @@ describe('publish', () => {
       /publish failed \(500\).*server error/s
     );
   });
+
+  it('wraps a network failure during container creation in an informative error', async () => {
+    const fetchImpl = async () => {
+      throw new Error('getaddrinfo ENOTFOUND graph.threads.net');
+    };
+    await assert.rejects(
+      () => publish({ accessToken: 'tok', threadsUserId: 'bot123', text: 'x', fetchImpl }),
+      /container create request failed.*ENOTFOUND/s
+    );
+  });
+
+  it('wraps a network failure during publish in an informative error', async () => {
+    let calls = 0;
+    const fetchImpl = async () => {
+      calls++;
+      if (calls === 1) return { ok: true, json: async () => ({ id: 'creation-4' }) };
+      throw new Error('socket hang up');
+    };
+    await assert.rejects(
+      () => publish({ accessToken: 'tok', threadsUserId: 'bot123', text: 'x', fetchImpl }),
+      /publish request failed.*socket hang up/s
+    );
+  });
 });
 
 describe('refreshToken', () => {
