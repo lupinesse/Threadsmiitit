@@ -206,9 +206,6 @@ describe('ScreenLisaa — login-gate hook order (regression)', () => {
   });
 });
 
-describe('End-to-end: admin moderation queue', () => {
-  after(cleanup);
-
 describe('ScreenLisaa — step 3 preview card', () => {
   after(cleanup);
 
@@ -279,6 +276,9 @@ describe('ScreenLisaa — step 3 preview card', () => {
     await act(async () => unmount());
   });
 });
+
+describe('End-to-end: admin moderation queue', () => {
+  after(cleanup);
 
   const PENDING_EVENT = {
     id: 'pend',
