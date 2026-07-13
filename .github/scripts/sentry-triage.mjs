@@ -29,6 +29,10 @@
  * Optional env vars:
  *   SENTRY_TRIAGE_CONFIG_PATH   Path to the noise-pattern config JSON,
  *                               default 'sentry-triage.config.json'.
+ *   SENTRY_API_HOST             Sentry API host, default 'sentry.io'. Set
+ *                               this for data-residency orgs (e.g.
+ *                               'de.sentry.io' for EU) — see the org's
+ *                               Settings > General > "Data Storage Region".
  */
 
 import { readFile } from 'node:fs/promises';
@@ -66,6 +70,7 @@ const SENTRY_PROJECT = must('SENTRY_PROJECT');
 const GITHUB_TOKEN = must('GITHUB_TOKEN');
 const [OWNER, REPO] = must('GITHUB_REPOSITORY').split('/');
 const CONFIG_PATH = process.env.SENTRY_TRIAGE_CONFIG_PATH || 'sentry-triage.config.json';
+const SENTRY_API_HOST = process.env.SENTRY_API_HOST || 'sentry.io';
 
 /**
  * Load the noise-pattern list from the JSON config file, validating that
@@ -122,7 +127,7 @@ function buildTrackingIssueBody(needsFix) {
 }
 
 async function main() {
-  console.log(`Sentry triage for ${SENTRY_ORG}/${SENTRY_PROJECT}`);
+  console.log(`Sentry triage for ${SENTRY_ORG}/${SENTRY_PROJECT} (API host: ${SENTRY_API_HOST})`);
   console.log(`  noise-pattern config: ${CONFIG_PATH}`);
 
   const noisePatterns = await loadNoisePatterns(CONFIG_PATH);
@@ -132,6 +137,7 @@ async function main() {
     token: SENTRY_AUTH_TOKEN,
     org: SENTRY_ORG,
     project: SENTRY_PROJECT,
+    apiHost: SENTRY_API_HOST,
   });
   console.log(`  ${issues.length} unresolved issue(s) found`);
 
@@ -145,7 +151,7 @@ async function main() {
   }
 
   for (const issue of noise) {
-    await resolveIssue({ token: SENTRY_AUTH_TOKEN, issueId: issue.id });
+    await resolveIssue({ token: SENTRY_AUTH_TOKEN, issueId: issue.id, apiHost: SENTRY_API_HOST });
     console.log(`  resolved noise issue ${issue.shortId}`);
   }
 

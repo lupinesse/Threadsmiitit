@@ -15,6 +15,11 @@ name: Sentry Triage
 #   SENTRY_ORG          Sentry organization slug
 #   SENTRY_PROJECT      Sentry project slug
 #
+# Optional variables:
+#   SENTRY_API_HOST     Sentry API host, default 'sentry.io'. Set this for
+#                       data-residency orgs (e.g. 'de.sentry.io' for EU) —
+#                       see the org's Settings > General > "Data Storage Region".
+#
 # Required permission:
 #   Settings > Actions > General > Workflow permissions > Read and write
 
@@ -65,6 +70,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_API_HOST: ${{ vars.SENTRY_API_HOST }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .github/scripts/sentry-triage.mjs

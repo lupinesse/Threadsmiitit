@@ -39,13 +39,23 @@ export function sentryHeaders(token) {
  * @param {string} params.token
  * @param {string} params.org
  * @param {string} params.project
+ * @param {string} [params.apiHost] - Sentry API host, default 'sentry.io'.
+ *   Data-residency orgs (e.g. EU) live on a different host such as
+ *   'de.sentry.io' — see the organization's Settings > General >
+ *   "Data Storage Region".
  * @param {typeof fetch} [params.fetchImpl] - Injectable for tests.
  * @returns {Promise<SentryIssue[]>}
  */
-export async function listUnresolvedIssues({ token, org, project, fetchImpl = fetch }) {
+export async function listUnresolvedIssues({
+  token,
+  org,
+  project,
+  apiHost = 'sentry.io',
+  fetchImpl = fetch,
+}) {
   const MAX_PAGES = 20; // 2 000 issues per project is an unreachable ceiling in practice
   const issues = [];
-  let url = `https://sentry.io/api/0/projects/${org}/${project}/issues/?query=is%3Aunresolved&limit=100`;
+  let url = `https://${apiHost}/api/0/projects/${org}/${project}/issues/?query=is%3Aunresolved&limit=100`;
   let page = 0;
 
   while (url) {
@@ -86,11 +96,13 @@ export function parseNextLink(linkHeader) {
  * @param {object} params
  * @param {string} params.token
  * @param {string} params.issueId
+ * @param {string} [params.apiHost] - Sentry API host, default 'sentry.io'.
+ *   See {@link listUnresolvedIssues} for why this may need to change.
  * @param {typeof fetch} [params.fetchImpl] - Injectable for tests.
  * @returns {Promise<object>}
  */
-export async function resolveIssue({ token, issueId, fetchImpl = fetch }) {
-  const response = await fetchImpl(`https://sentry.io/api/0/issues/${issueId}/`, {
+export async function resolveIssue({ token, issueId, apiHost = 'sentry.io', fetchImpl = fetch }) {
+  const response = await fetchImpl(`https://${apiHost}/api/0/issues/${issueId}/`, {
     method: 'PUT',
     headers: sentryHeaders(token),
     body: JSON.stringify({ status: 'resolved' }),

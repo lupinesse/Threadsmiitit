@@ -95,6 +95,21 @@ describe('listUnresolvedIssues', () => {
     assert.strictEqual(issues.length, 1);
   });
 
+  test('uses a custom apiHost for data-residency orgs (e.g. EU)', async () => {
+    let requestedUrl;
+    const fetchImpl = async (url) => {
+      requestedUrl = url;
+      return makeResponse([issueFixture()]);
+    };
+
+    await listUnresolvedIssues({ ...params, apiHost: 'de.sentry.io', fetchImpl });
+
+    assert.strictEqual(
+      requestedUrl,
+      'https://de.sentry.io/api/0/projects/acme/javascript-react-1/issues/?query=is%3Aunresolved&limit=100'
+    );
+  });
+
   test('follows the Link header across pages and stops when results="false"', async () => {
     const pages = [
       makeResponse([issueFixture({ id: '1' })], {
@@ -146,6 +161,18 @@ describe('resolveIssue', () => {
   test('throws when the API rejects the request', async () => {
     const fetchImpl = async () => makeResponse('Forbidden', { status: 403 });
     await assert.rejects(resolveIssue({ token: 'tok-123', issueId: '1', fetchImpl }), /403/);
+  });
+
+  test('uses a custom apiHost for data-residency orgs (e.g. EU)', async () => {
+    let requestedUrl;
+    const fetchImpl = async (url) => {
+      requestedUrl = url;
+      return makeResponse({ id: '1', status: 'resolved' });
+    };
+
+    await resolveIssue({ token: 'tok-123', issueId: '1', apiHost: 'de.sentry.io', fetchImpl });
+
+    assert.strictEqual(requestedUrl, 'https://de.sentry.io/api/0/issues/1/');
   });
 });
 
