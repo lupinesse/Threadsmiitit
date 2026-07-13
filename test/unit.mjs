@@ -1153,7 +1153,19 @@ describe('signSession / verifySession', () => {
   it('rejects a token with a tampered signature segment', () => {
     const token = signSession(sessionUser, { secret: 'k' });
     const [payloadB64, sigB64] = token.split('.');
-    const tampered = `${payloadB64}.${sigB64.slice(0, -1)}${sigB64.at(-1) === 'a' ? 'b' : 'a'}`;
+    // Do not tamper by swapping the *last* base64url character between two
+    // fixed letters (e.g. 'a'/'b'): HMAC-SHA256 signatures are always 32
+    // bytes, and 32 % 3 === 2, so the final base64 group is a partial
+    // 3-character group whose last character encodes only 4 meaningful bits
+    // (the remaining 2 bits are discarded padding). 'a' (011010) and 'b'
+    // (011011) share the same top 4 bits, so whenever the real signature's
+    // last character already falls in that group, decoding the "tampered"
+    // value produces the exact same bytes as the original and verification
+    // spuriously succeeds — a ~1-in-16 flaky failure seen on PR #75. Flip a
+    // full byte instead, which always changes the decoded signature.
+    const sigBytes = Buffer.from(sigB64, 'base64url');
+    sigBytes[0] ^= 0xff;
+    const tampered = `${payloadB64}.${sigBytes.toString('base64url')}`;
     assert.strictEqual(verifySession(tampered, { secret: 'k' }), null);
   });
 
