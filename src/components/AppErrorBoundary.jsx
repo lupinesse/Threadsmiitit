@@ -11,6 +11,7 @@
  * issue #81, code-splitting the client bundle).
  */
 import { Component } from 'react';
+import { reportErrorToSentry } from '../lib/reportError.js';
 
 /**
  * @param {object} props
@@ -25,26 +26,11 @@ export class AppErrorBoundary extends Component {
   }
 
   /**
-   * Reports the caught error to Sentry, loading the SDK on demand — an
-   * uncaught render error is rare enough that paying its chunk's load cost
-   * only when it actually happens is a better trade than bundling Sentry
-   * into every user's first load.
    * @param {Error} error
    * @param {{componentStack: string}} info
    */
   componentDidCatch(error, info) {
-    import('../lib/sentry.js')
-      .then(({ Sentry }) => {
-        Sentry.captureException(error, {
-          contexts: { react: { componentStack: info.componentStack } },
-        });
-      })
-      .catch((loadError) => {
-        // The Sentry chunk itself failed to load (e.g. offline) — the
-        // original render error is already logged by React's own error
-        // boundary reporting, so this is only about the reporting path.
-        console.warn('[AppErrorBoundary] Failed to load Sentry to report error:', loadError);
-      });
+    reportErrorToSentry(error, info);
   }
 
   render() {
