@@ -11,8 +11,9 @@
  * every user's first load (see issue #81, code-splitting the client bundle).
  * @param {Error} error
  * @param {{componentStack: string}} info
- * @param {() => Promise<{Sentry: object}>} [importSentry] - Injectable for
- *   tests; defaults to the real dynamic import of `./sentry.js`.
+ * @param {Function} [importSentry] - Injectable for tests; a zero-arg
+ *   function returning a promise that resolves to `{ Sentry }`. Defaults to
+ *   the real dynamic import of `./sentry.js`.
  * @returns {Promise<void>}
  */
 export function reportErrorToSentry(error, info, importSentry = () => import('./sentry.js')) {
