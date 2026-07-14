@@ -50,10 +50,17 @@ export function parseJSON(s) {
  * edit, or remove anything. Checked explicitly up front (rather than
  * letting the network call fail with a generic error) so the assistant can
  * reply with a helpful Finnish message instead.
+ *
+ * `edit`/`remove` are destructive and mutate a meetup outside the user's
+ * direct interaction with it, so — unlike `add` — they are never executed
+ * here. This returns a `pending: true` descriptor instead; the caller must
+ * show it as a confirmation chip and only call {@link executeConfirmedAction}
+ * once the user explicitly confirms (see `ChatAssistant.jsx`).
  * @param {object} a - Action object with op, and relevant fields.
  * @param {object|null} link - Detected Threads link, or null if none found.
  * @param {object|null} user - Currently logged-in user, or null if signed out.
- * @returns {Promise<object|null>} Result object with changed, kind, label (and optional event), or null.
+ * @returns {Promise<object|null>} Result object with changed, kind, label
+ *   (and optional event or pending), or null.
  */
 export async function applyAction(a, link, user) {
   if (!a || !a.op) return null;
@@ -88,7 +95,43 @@ export async function applyAction(a, link, user) {
 
   if (a.op === 'edit' && a.id) {
     const id = String(a.id).replace('#', '');
-    const result = await EventStore.edit(id, a);
+    return {
+      changed: false,
+      pending: true,
+      kind: 'edit',
+      action: { ...a, id },
+      label: `Vahvista muokkaus miittiin #${id}`,
+    };
+  }
+
+  if (a.op === 'remove' && a.id) {
+    const id = String(a.id).replace('#', '');
+    return {
+      changed: false,
+      pending: true,
+      kind: 'remove',
+      action: { ...a, id },
+      label: `Vahvista miitin #${id} poisto`,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Executes a previously-confirmed `edit` or `remove` action against
+ * EventStore. Only call this after the user has explicitly confirmed the
+ * pending-action chip produced by {@link applyAction} — it performs the
+ * actual mutation.
+ * @param {object} action - The `action` field from a `pending` result of {@link applyAction}.
+ * @param {object|null} user - Currently logged-in user, or null if signed out.
+ * @returns {Promise<object|null>} Result object with changed, kind, label (and optional event), or null.
+ */
+export async function executeConfirmedAction(action, user) {
+  if (!action || !user) return null;
+
+  if (action.op === 'edit' && action.id) {
+    const result = await EventStore.edit(action.id, action);
     return result.ok
       ? {
           changed: true,
@@ -96,16 +139,68 @@ export async function applyAction(a, link, user) {
           event: result.event,
           label: `Päivitetty #${result.event.id}`,
         }
-      : { changed: false, kind: 'error', label: `Tunnistetta #${id} ei löytynyt` };
+      : { changed: false, kind: 'error', label: `Tunnistetta #${action.id} ei löytynyt` };
   }
 
-  if (a.op === 'remove' && a.id) {
-    const id = String(a.id).replace('#', '');
-    const result = await EventStore.remove(id);
+  if (action.op === 'remove' && action.id) {
+    const result = await EventStore.remove(action.id);
     return result.ok
-      ? { changed: true, kind: 'remove', label: `Poistettu #${id}` }
-      : { changed: false, kind: 'error', label: `Tunnistetta #${id} ei löytynyt` };
+      ? { changed: true, kind: 'remove', label: `Poistettu #${action.id}` }
+      : { changed: false, kind: 'error', label: `Tunnistetta #${action.id} ei löytynyt` };
   }
 
   return null;
+}
+
+/**
+ * Merges a patch into one pending-action chip, leaving every other message
+ * and chip untouched. Used by `ChatAssistant.jsx` to flip a chip to its busy
+ * state, or attach an error, while a confirm/cancel request is in flight.
+ * @param {object[]} msgs - Chat message list (each may have a `pending` array).
+ * @param {number} msgIndex - Index of the message the chip belongs to.
+ * @param {number} pendingId - The chip's `id`.
+ * @param {object} patch - Fields to merge into the matching pending entry.
+ * @returns {object[]} A new messages array with the patch applied.
+ */
+export function patchPendingAction(msgs, msgIndex, pendingId, patch) {
+  return msgs.map((m, i) => {
+    if (i !== msgIndex || !m.pending) return m;
+    return { ...m, pending: m.pending.map((p) => (p.id === pendingId ? { ...p, ...patch } : p)) };
+  });
+}
+
+/**
+ * Resolves a pending-action chip after it executes successfully: removes it
+ * from `pending` and appends its result to `cards` so a confirmation is shown
+ * in its place.
+ * @param {object[]} msgs - Chat message list.
+ * @param {number} msgIndex - Index of the message the chip belongs to.
+ * @param {number} pendingId - The chip's `id`.
+ * @param {object} result - Result returned by {@link executeConfirmedAction}.
+ * @returns {object[]} A new messages array with the pending entry resolved.
+ */
+export function resolvePendingAction(msgs, msgIndex, pendingId, result) {
+  return msgs.map((m, i) => {
+    if (i !== msgIndex || !m.pending) return m;
+    return {
+      ...m,
+      pending: m.pending.filter((p) => p.id !== pendingId),
+      cards: [...(m.cards ?? []), result],
+    };
+  });
+}
+
+/**
+ * Discards a pending-action chip without executing it — the user tapped
+ * cancel, so no store mutation ever happens for it.
+ * @param {object[]} msgs - Chat message list.
+ * @param {number} msgIndex - Index of the message the chip belongs to.
+ * @param {number} pendingId - The chip's `id`.
+ * @returns {object[]} A new messages array with the pending entry removed.
+ */
+export function dismissPendingAction(msgs, msgIndex, pendingId) {
+  return msgs.map((m, i) => {
+    if (i !== msgIndex || !m.pending) return m;
+    return { ...m, pending: m.pending.filter((p) => p.id !== pendingId) };
+  });
 }

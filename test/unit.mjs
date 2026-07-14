@@ -729,7 +729,13 @@ describe('EventStore canonicalKunta', () => {
 // for the client to attribute. These tests mock fetch instead of asserting on
 // a client-built addedBy shape.
 
-const { applyAction } = await import('../src/lib/chatActions.js');
+const {
+  applyAction,
+  executeConfirmedAction,
+  patchPendingAction,
+  resolvePendingAction,
+  dismissPendingAction,
+} = await import('../src/lib/chatActions.js');
 
 describe('ChatAssistant.applyAction — add', () => {
   const USER = {
@@ -814,7 +820,13 @@ describe('ChatAssistant.applyAction — add', () => {
   });
 });
 
-describe('ChatAssistant.applyAction — remove', () => {
+// Regression (#92): edit/remove used to mutate EventStore the instant the
+// model emitted the action — no confirmation step, unlike every other
+// destructive flow in the app (see ConfirmSheet in ProfileSheet.jsx). These
+// two ops must now come back as an unexecuted `pending` descriptor; only
+// `executeConfirmedAction` (called from ChatAssistant.jsx after the user
+// taps confirm on the pending-action chip) is allowed to touch the network.
+describe('ChatAssistant.applyAction — edit/remove no longer mutate immediately (#92)', () => {
   const USER = {
     id: 'u1',
     username: 'kirjoittaja',
@@ -822,12 +834,38 @@ describe('ChatAssistant.applyAction — remove', () => {
     profileUrl: 'https://www.threads.com/@kirjoittaja',
   };
 
+  it('a remove action returns a pending descriptor and never calls fetch', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('applyAction must not touch the network for a remove op');
+    });
+    const result = await applyAction({ op: 'remove', id: '#ab12' }, null, USER);
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.pending, true);
+    assert.strictEqual(result.kind, 'remove');
+    assert.strictEqual(result.action.id, 'ab12');
+    assert.strictEqual(result.label, 'Vahvista miitin #ab12 poisto');
+  });
+
+  it('an edit action returns a pending descriptor and never calls fetch', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('applyAction must not touch the network for an edit op');
+    });
+    const result = await applyAction({ op: 'edit', id: '#ab12', title: 'Uusi nimi' }, null, USER);
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.pending, true);
+    assert.strictEqual(result.kind, 'edit');
+    assert.strictEqual(result.action.id, 'ab12');
+    assert.strictEqual(result.action.title, 'Uusi nimi');
+  });
+});
+
+describe('ChatAssistant.executeConfirmedAction — remove', () => {
   // Regression: the result for a successful remove has no `event` field
   // (there's nothing left to describe), but the caller (ChatAssistant.jsx)
   // still needs `changed: true` and a `label` to show a confirmation.
   it('DELETEs /api/events and reports success without an event field', async (t) => {
     const calls = mockFetchOnce(t, { ok: true });
-    const result = await applyAction({ op: 'remove', id: '#ab12' }, null, USER);
+    const result = await executeConfirmedAction({ op: 'remove', id: 'ab12' }, { id: 'u1' });
     assert.strictEqual(result.changed, true);
     assert.strictEqual(result.kind, 'remove');
     assert.strictEqual(result.label, 'Poistettu #ab12');
@@ -838,9 +876,80 @@ describe('ChatAssistant.applyAction — remove', () => {
 
   it('reports an error for an id the server rejects', async (t) => {
     mockFetchOnce(t, { error: 'not_found' }, 404);
-    const result = await applyAction({ op: 'remove', id: 'zzzz' }, null, USER);
+    const result = await executeConfirmedAction({ op: 'remove', id: 'zzzz' }, { id: 'u1' });
     assert.strictEqual(result.changed, false);
     assert.strictEqual(result.kind, 'error');
+  });
+
+  it('returns null without a signed-in user, and never calls fetch', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('executeConfirmedAction must not touch the network without a user');
+    });
+    const result = await executeConfirmedAction({ op: 'remove', id: 'ab12' }, null);
+    assert.strictEqual(result, null);
+  });
+});
+
+describe('ChatAssistant.executeConfirmedAction — edit', () => {
+  it('PATCHes /api/events and reports the updated event', async (t) => {
+    const calls = mockFetchOnce(t, { event: { id: 'ab12', title: 'Uusi nimi' } });
+    const result = await executeConfirmedAction(
+      { op: 'edit', id: 'ab12', title: 'Uusi nimi' },
+      { id: 'u1' }
+    );
+    assert.strictEqual(result.changed, true);
+    assert.strictEqual(result.kind, 'edit');
+    assert.strictEqual(result.event.title, 'Uusi nimi');
+    assert.strictEqual(calls[0].url, '/api/events?id=ab12');
+    assert.strictEqual(calls[0].opts.method, 'PATCH');
+  });
+});
+
+describe('ChatAssistant pending-chip reducers', () => {
+  function samplePending() {
+    return [
+      { role: 'user', text: 'poista #ab12' },
+      {
+        role: 'assistant',
+        text: 'Vahvistetaanko?',
+        cards: [],
+        pending: [
+          {
+            id: 1,
+            kind: 'remove',
+            label: 'Vahvista miitin #ab12 poisto',
+            action: { op: 'remove', id: 'ab12' },
+            busy: false,
+            error: null,
+          },
+        ],
+      },
+    ];
+  }
+
+  it('patchPendingAction merges a patch into the matching chip only', () => {
+    const next = patchPendingAction(samplePending(), 1, 1, { busy: true });
+    assert.strictEqual(next[1].pending[0].busy, true);
+    assert.strictEqual(next[1].pending[0].label, 'Vahvista miitin #ab12 poisto');
+  });
+
+  it('patchPendingAction leaves other messages untouched', () => {
+    const msgs = samplePending();
+    const next = patchPendingAction(msgs, 1, 1, { busy: true });
+    assert.strictEqual(next[0], msgs[0]);
+  });
+
+  it('resolvePendingAction removes the chip and appends the result to cards', () => {
+    const result = { changed: true, kind: 'remove', label: 'Poistettu #ab12' };
+    const next = resolvePendingAction(samplePending(), 1, 1, result);
+    assert.deepStrictEqual(next[1].pending, []);
+    assert.deepStrictEqual(next[1].cards, [result]);
+  });
+
+  it('dismissPendingAction removes the chip without adding any card', () => {
+    const next = dismissPendingAction(samplePending(), 1, 1);
+    assert.deepStrictEqual(next[1].pending, []);
+    assert.deepStrictEqual(next[1].cards, []);
   });
 });
 
