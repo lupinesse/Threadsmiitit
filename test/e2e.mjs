@@ -470,4 +470,28 @@ describe('Bottom nav — lazy-loaded screens (regression, #81)', () => {
 
     await act(async () => unmount());
   });
+
+  it('renders Lisää after code-splitting it via React.lazy', async (t) => {
+    // Distinct from the direct-render ScreenLisaa tests elsewhere in this
+    // file: this drives the tab === 'lisaa' branch through App's own
+    // React.lazy wrapper, in its own render so an earlier tab switch in the
+    // same test can't leave a pending Suspense boundary interfering.
+    mockFetch(t, {
+      'GET /api/auth/whoami': { status: 401, body: null },
+      'GET /api/events': { body: { events: [APPROVED_EVENT] } },
+    });
+
+    const { unmount } = render(React.createElement(AuthProvider, null, React.createElement(App)));
+    await screen.findByText(TEST_TITLE);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lisää' }));
+    // The closed "Muokkaa miittiä" edit sheet also renders its own (hidden)
+    // ScreenLisaa instance, so this same login-gate text appears twice —
+    // use findAllByText rather than findByText, which requires exactly one.
+    await waitFor(() =>
+      assert.ok(screen.queryAllByText('Kirjaudu sisään lisätäksesi miitin').length > 0)
+    );
+
+    await act(async () => unmount());
+  });
 });

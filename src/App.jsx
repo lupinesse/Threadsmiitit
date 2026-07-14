@@ -59,7 +59,8 @@ const ScreenInfo = lazy(() =>
  * Minimal loading placeholder shown in the tab content area while a
  * lazy-loaded screen's chunk is still being fetched, so switching tabs on a
  * slow connection shows *something* rather than a blank flash.
- * @param {{t: object}} props - `t` is the active theme's token object.
+ * @param {{t: {inkSoft: string, fontHead: string}}} props - `t` is the
+ *   active theme's token object; only `inkSoft` and `fontHead` are used.
  * @returns {JSX.Element}
  */
 function ScreenLoading({ t }) {
