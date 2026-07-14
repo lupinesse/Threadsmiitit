@@ -7,6 +7,15 @@
  * let multiple distinct clients rate-limit each other (#78). This tries the
  * standard `x-forwarded-for` header as a secondary signal first — it's set
  * by most proxies/CDNs a request passes through — before giving up.
+ *
+ * Caveat: unlike `x-nf-client-connection-ip` (set by Netlify from the
+ * actual TCP connection, not attacker-controlled), `x-forwarded-for` is a
+ * plain request header a client can set to any value it likes. A client
+ * that already lacks the Netlify header could rotate a fake
+ * `x-forwarded-for` value per request to evade this backstop entirely.
+ * Acceptable here because this is a defense-in-depth backstop behind the
+ * primary Netlify edge rate limit, not the sole rate limit — see
+ * `rate-limit.mjs`'s module doc comment.
  */
 
 /** Shared bucket key used when no client-identifying header is present. */
