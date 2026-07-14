@@ -33,11 +33,18 @@ export class AppErrorBoundary extends Component {
    * @param {{componentStack: string}} info
    */
   componentDidCatch(error, info) {
-    import('../lib/sentry.js').then(({ Sentry }) => {
-      Sentry.captureException(error, {
-        contexts: { react: { componentStack: info.componentStack } },
+    import('../lib/sentry.js')
+      .then(({ Sentry }) => {
+        Sentry.captureException(error, {
+          contexts: { react: { componentStack: info.componentStack } },
+        });
+      })
+      .catch((loadError) => {
+        // The Sentry chunk itself failed to load (e.g. offline) — the
+        // original render error is already logged by React's own error
+        // boundary reporting, so this is only about the reporting path.
+        console.warn('[AppErrorBoundary] Failed to load Sentry to report error:', loadError);
       });
-    });
   }
 
   render() {
