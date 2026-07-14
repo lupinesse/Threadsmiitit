@@ -6,19 +6,17 @@
  * so it fills the viewport on mobile and stays centred on desktop.
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
 import NotificationStore from './store/NotificationStore.js';
 import { MeetupDetail, Sheet, ConfirmSheet, hexA } from './components/ui.jsx';
 import { ProfileSheet } from './components/ProfileSheet.jsx';
-import { AdminInbox } from './components/AdminInbox.jsx';
-import { ChatAssistant } from './components/ChatAssistant.jsx';
+// ScreenMiitit is the default tab shown on first paint, so it stays a
+// direct import — lazy-loading it would add a Suspense flash to every
+// cold load for no bundle-size win on the path that matters most.
 import { ScreenMiitit } from './screens/ScreenMiitit.jsx';
-import { ScreenKalenteri } from './screens/ScreenKalenteri.jsx';
-import { ScreenLisaa } from './screens/ScreenLisaa.jsx';
-import { ScreenInfo } from './screens/ScreenInfo.jsx';
 import {
   IconList,
   IconCalendar,
@@ -32,6 +30,58 @@ import {
 } from './components/icons.jsx';
 
 const THEME = makeTheme('social', 'monodark');
+
+// Code-split (#81): both sheets are closed by default and AdminInbox is
+// admin-only, so most sessions never need this code — deferring it to a
+// separate chunk, loaded only once each sheet actually mounts, shrinks the
+// main bundle non-admin users pay for on every load.
+const AdminInbox = lazy(() =>
+  import('./components/AdminInbox.jsx').then((m) => ({ default: m.AdminInbox }))
+);
+const ChatAssistant = lazy(() =>
+  import('./components/ChatAssistant.jsx').then((m) => ({ default: m.ChatAssistant }))
+);
+
+// Route-level split: only the active tab's screen needs to be loaded, and
+// 'miitit' (the default tab, imported eagerly above) is the only one shown
+// on first paint.
+const ScreenKalenteri = lazy(() =>
+  import('./screens/ScreenKalenteri.jsx').then((m) => ({ default: m.ScreenKalenteri }))
+);
+const ScreenLisaa = lazy(() =>
+  import('./screens/ScreenLisaa.jsx').then((m) => ({ default: m.ScreenLisaa }))
+);
+const ScreenInfo = lazy(() =>
+  import('./screens/ScreenInfo.jsx').then((m) => ({ default: m.ScreenInfo }))
+);
+
+/**
+ * Minimal loading placeholder shown in the tab content area while a
+ * lazy-loaded screen's chunk is still being fetched, so switching tabs on a
+ * slow connection shows *something* rather than a blank flash.
+ *
+ * Kept local to App.jsx rather than its own module: it's only used by the
+ * two `Suspense` boundaries below, both in this file. Extract it if a third
+ * consumer appears elsewhere in the tree.
+ * @param {{t: {inkSoft: string, fontHead: string}}} props - `t` is the
+ *   active theme's token object; only `inkSoft` and `fontHead` are used.
+ * @returns {JSX.Element}
+ */
+function ScreenLoading({ t }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '48px 0',
+        color: t.inkSoft,
+        fontFamily: t.fontHead,
+      }}
+    >
+      Ladataan…
+    </div>
+  );
+}
 
 /** Tabs available in the bottom nav bar. */
 const TABS = [
@@ -513,39 +563,41 @@ export default function App() {
               onViewNotificationCity={viewNotificationCity}
             />
           )}
-          {tab === 'kalenteri' && (
-            <ScreenKalenteri
-              t={t}
-              onOpen={openMeetup}
-              cityFilter={cityFilter}
-              setCityFilter={setCityFilter}
-              events={events}
-            />
-          )}
-          {tab === 'lisaa' && (
-            <ScreenLisaa
-              t={t}
-              user={user}
-              onDone={() => {
-                refresh();
-                setTab('miitit');
-              }}
-              onOpenChat={() => {
-                setChatOpen(true);
-                setTab('miitit');
-              }}
-              refresh={refresh}
-            />
-          )}
-          {tab === 'info' && (
-            <ScreenInfo
-              t={t}
-              onOpen={openMeetup}
-              sub={infoSub}
-              setSub={setInfoSub}
-              events={events}
-            />
-          )}
+          <Suspense fallback={<ScreenLoading t={t} />}>
+            {tab === 'kalenteri' && (
+              <ScreenKalenteri
+                t={t}
+                onOpen={openMeetup}
+                cityFilter={cityFilter}
+                setCityFilter={setCityFilter}
+                events={events}
+              />
+            )}
+            {tab === 'lisaa' && (
+              <ScreenLisaa
+                t={t}
+                user={user}
+                onDone={() => {
+                  refresh();
+                  setTab('miitit');
+                }}
+                onOpenChat={() => {
+                  setChatOpen(true);
+                  setTab('miitit');
+                }}
+                refresh={refresh}
+              />
+            )}
+            {tab === 'info' && (
+              <ScreenInfo
+                t={t}
+                onOpen={openMeetup}
+                sub={infoSub}
+                setSub={setInfoSub}
+                events={events}
+              />
+            )}
+          </Suspense>
         </main>
 
         {/* ── Bottom nav ─────────────────────────────────────────────── */}
@@ -659,32 +711,48 @@ export default function App() {
           t={t.card}
           label="Muokkaa miittiä"
         >
-          <ScreenLisaa
-            key={editTarget?.id}
-            t={t}
-            user={user}
-            editTarget={editTarget}
-            onDone={() => {
-              refresh();
-              setEditTarget(null);
-            }}
-            onCancel={() => setEditTarget(null)}
-            refresh={refresh}
-          />
+          <Suspense fallback={<ScreenLoading t={t} />}>
+            <ScreenLisaa
+              key={editTarget?.id}
+              t={t}
+              user={user}
+              editTarget={editTarget}
+              onDone={() => {
+                refresh();
+                setEditTarget(null);
+              }}
+              onCancel={() => setEditTarget(null)}
+              refresh={refresh}
+            />
+          </Suspense>
         </Sheet>
 
         {/* ── Admin moderation inbox ────────────────────────────────── */}
+        {/* No loading indicator: both sheets start closed (`open={false}`)
+            and render nothing until their own `open` prop flips true, so
+            their chunk has time to load in the background before the user
+            ever sees the sheet — a "Ladataan…" flash here would only show
+            while nothing is visible anyway. */}
         {isAdmin && (
-          <AdminInbox
-            t={t}
-            open={adminOpen}
-            onClose={() => setAdminOpen(false)}
-            refresh={refresh}
-          />
+          <Suspense fallback={null}>
+            <AdminInbox
+              t={t}
+              open={adminOpen}
+              onClose={() => setAdminOpen(false)}
+              refresh={refresh}
+            />
+          </Suspense>
         )}
 
         {/* ── Chat assistant sheet ───────────────────────────────────── */}
-        <ChatAssistant t={t} open={chatOpen} onClose={() => setChatOpen(false)} refresh={refresh} />
+        <Suspense fallback={null}>
+          <ChatAssistant
+            t={t}
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
+            refresh={refresh}
+          />
+        </Suspense>
       </div>
     </div>
   );
