@@ -451,3 +451,38 @@ describe('End-to-end: chat assistant remove confirmation', () => {
     await act(async () => unmount());
   });
 });
+
+describe('ScreenKalenteri — calendar grid keys (regression)', () => {
+  after(cleanup);
+
+  // Regression: day cells were keyed with `key={d}` (the bare day-of-month
+  // number), while the grid's leading blank cells are keyed by index. On any
+  // month whose first day lands on Tuesday or later, a blank at index 1
+  // collides with day-cell key `1`, and React warns "Encountered two
+  // children with the same key". Keying day cells by a composite instead of
+  // the bare day number keeps every cell's key unique.
+  it('renders the Kalenteri tab without a duplicate-key console warning', async (t) => {
+    localStorage.clear();
+    mockFetch(t, {
+      'GET /api/auth/whoami': { status: 401, body: null },
+      'GET /api/events': { body: { events: [APPROVED_EVENT] } },
+    });
+
+    const consoleError = mock.method(console, 'error', () => {});
+    const { unmount } = render(React.createElement(AuthProvider, null, React.createElement(App)));
+
+    const kalenteriTab = (await screen.findByText('Kalenteri')).closest('button');
+    fireEvent.click(kalenteriTab);
+
+    // The month grid renders synchronously with the tab switch.
+    await screen.findByText('MA');
+
+    const keyWarnings = consoleError.mock.calls.filter((call) =>
+      String(call.arguments[0]).includes('same key')
+    );
+    assert.equal(keyWarnings.length, 0, 'no duplicate-key warning should be logged');
+
+    consoleError.mock.restore();
+    await act(async () => unmount());
+  });
+});

@@ -174,6 +174,9 @@ export function ScreenKalenteri({ t, onOpen, cityFilter, setCityFilter, events }
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
           {cells.map((d, i) => {
+            // Leading blanks are keyed by index; day cells below are keyed by
+            // a composite (not the bare day number) so a blank at index N
+            // never collides with the Nth day-of-month sharing that value.
             if (!d) return <div key={i} />;
             const has = byDay[d];
             const today = isToday(d);
@@ -183,7 +186,7 @@ export function ScreenKalenteri({ t, onOpen, cityFilter, setCityFilter, events }
             const past = cellDate < todayPlain;
             return (
               <button
-                key={d}
+                key={`${ym.y}-${ym.m}-${i}`}
                 onClick={() => has && setSelDay(sel ? null : d)}
                 style={{
                   all: 'unset',
