@@ -14,14 +14,16 @@
  * - **Rate limiting**: configured via netlify.toml edge rules (per-IP, 30 req
  *   per 60 s). Requires Netlify Pro or higher — as a backstop for lower
  *   plans (where that edge rule silently doesn't apply), this function also
- *   enforces the same limit in-process via `lib/rate-limit.mjs`. That
- *   backstop is per-instance only (see its module doc comment) and, like
- *   the origin check, is bypassed under `netlify dev`. The bucket key is
- *   resolved via `lib/client-ip.mjs`, which falls back to `X-Forwarded-For`
- *   before giving up and bucketing unidentified clients together (#78).
- *   Every log line in this handler includes `requestId` (from Netlify's
- *   `x-nf-request-id`, or a generated UUID outside Netlify) so a single
- *   request's config, rate-limit, and error logs can be correlated.
+ *   enforces the same limit via `lib/rate-limit.mjs`, backed by a shared
+ *   Netlify Blobs store so the limit holds across every warm function
+ *   instance rather than resetting per instance (see its module doc
+ *   comment). Like the origin check, it's bypassed under `netlify dev`.
+ *   The bucket key is resolved via `lib/client-ip.mjs`, which falls back
+ *   to `X-Forwarded-For` before giving up and bucketing unidentified
+ *   clients together (#78). Every log line in this handler includes
+ *   `requestId` (from Netlify's `x-nf-request-id`, or a generated UUID
+ *   outside Netlify) so a single request's config, rate-limit, and error
+ *   logs can be correlated.
  *
  * Upstream API errors (e.g. 429 Too Many Requests, 400 Bad Request) are
  * propagated to the caller with the real status code and a descriptive
@@ -45,13 +47,6 @@ initSentry();
 
 /** Allowed request origin — set ALLOWED_ORIGIN in Netlify environment variables. */
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? 'https://threadsmiitit.netlify.app';
-
-/**
- * Per-instance rate-limit hit store, shared across invocations of this warm
- * function instance. See `lib/rate-limit.mjs` for why this is a backstop
- * rather than a complete rate limit.
- */
-const rateLimitStore = new Map();
 
 async function handler(req) {
   if (req.method !== 'POST') {
@@ -93,7 +88,7 @@ async function handler(req) {
       { requestId, clientIp }
     );
   }
-  if (!isNetlifyDev && !isWithinRateLimit(rateLimitStore, clientIp)) {
+  if (!isNetlifyDev && !(await isWithinRateLimit(clientIp))) {
     console.info('[/api/chat] rate limit exceeded (in-function backstop)', { requestId, clientIp });
     return new Response(JSON.stringify({ error: 'Too many requests' }), {
       status: 429,

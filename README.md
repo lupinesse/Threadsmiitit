@@ -66,9 +66,13 @@ The key is read **server-side** only — never exposed in the browser bundle. In
 
 The `netlify/functions/auth-*.js` functions implement Threads (Meta) OAuth login. A successful login mints a signed, httpOnly `tm_session` cookie (see `netlify/functions/lib/session.mjs`); the client learns who is signed in via `GET /api/auth/whoami`, never by reading the cookie itself. See [.env.example](.env.example) for the full list of environment variables (`THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET`, `THREADS_REDIRECT_URI`, `SESSION_SECRET`, `ALLOWED_ORIGIN`) needed to enable it locally.
 
-#### Threads broadcast bot (foundation only — not yet posting)
+#### Threads broadcast bot (disabled by default)
 
-A bot account announces meetup cancellations and new approvals on its own Threads profile. This is scaffolding only so far — `netlify/functions/lib/threadsClient.mjs` (Threads Graph API calls), `botState.mjs` (Blobs-backed idempotency ledger + token store), `botConfig.mjs` (safety switches and timing constants), and `shared/postTemplates.mjs` (pure post-copy renderers) exist and are unit tested, plus a weekly `bot-token-refresh.js` scheduled function and a one-time `scripts/seed-bot-token.mjs` setup script — but no trigger actually calls `publish()` yet. `BOT_ENABLED` defaults `false` and `BOT_DRY_RUN` defaults `true`, so none of this can post for real even once wired up, until both are explicitly flipped. See [.env.example](.env.example) for `THREADS_BOT_USER_ID`/`BOT_ENABLED`/`BOT_DRY_RUN`/`NETLIFY_SITE_ID`/`NETLIFY_API_TOKEN`.
+A bot account announces meetup cancellations, new approvals, and a weekly summary on its own Threads profile. `BOT_ENABLED` defaults `false` and `BOT_DRY_RUN` defaults `true`, so it can't post for real until both are explicitly set otherwise — validate with `BOT_DRY_RUN=true` against production data before flipping `BOT_ENABLED=true`.
+
+Three scheduled functions drive it: `netlify/functions/bot-cancellations.js` (every 5 min, immediate), `netlify/functions/bot-daily.js` (daily, triggers the background function `bot-post-daily-background.js` to post a root + one reply per new meetup), and `netlify/functions/bot-weekly.js` (Sundays, gated to 20:00 `Europe/Helsinki` regardless of DST via `netlify/functions/lib/weeklyGate.mjs`). All three share `netlify/functions/lib/threadsClient.mjs` (Threads Graph API calls), `botState.mjs` (Blobs-backed idempotency ledger + token store — an event is never announced twice, even across overlapping runs), `botConfig.mjs` (safety switches and timing constants), and `shared/postTemplates.mjs` (pure post-copy renderers); a weekly `bot-token-refresh.js` keeps the access token renewed, and the one-time `scripts/seed-bot-token.mjs` script authorizes the bot account and seeds its first token. See [.env.example](.env.example) for `THREADS_BOT_USER_ID`/`BOT_ENABLED`/`BOT_DRY_RUN`/`NETLIFY_SITE_ID`/`NETLIFY_API_TOKEN`.
+
+Netlify's Scheduled Functions feature may need enabling on the site before any of these actually run on their cron schedules — a deploy step, not something this code can do for itself.
 
 #### Error monitoring (optional)
 
