@@ -26,7 +26,8 @@ const STORE_NAME = 'events';
  * @property {string} [rejectReason]
  * @property {number} [cancelledAt] - Epoch ms.
  * @property {string} [cancelledBy] - Username of whoever cancelled it (owner or admin).
- * @property {{id:string, username:string, avatarUrl:string|null, profileUrl:string}} addedBy
+ * @property {{id:string, username:string, avatarUrl:string|null, profileUrl:string}|{deleted:true}} addedBy -
+ *   `{deleted: true}` after `anonymizeEventsByUserId` has scrubbed the original submitter's data.
  * @property {string} title
  * @property {string} date - YYYY-MM-DD.
  * @property {string} city
@@ -272,6 +273,26 @@ export async function moderateEvent(id, action, reason, store) {
   };
   await putEvent(event, store);
   return { ok: true, event };
+}
+
+/**
+ * Anonymises every event submitted by a given user, for Meta's data-deletion
+ * callback (`auth-delete.js`). Replaces `addedBy` with a `{deleted: true}`
+ * marker rather than deleting the event outright — event content (title,
+ * date, city, etc.) is kept for archival purposes, only the submitter's
+ * personal data is scrubbed.
+ * @param {string} userId - The Threads-scoped user id to match against `addedBy.id`.
+ * @param {BlobStoreLike} [store]
+ * @returns {Promise<{anonymised: number}>} Count of events that were changed.
+ */
+export async function anonymizeEventsByUserId(userId, store) {
+  const s = resolveStore(store);
+  const all = await listAllEvents(s);
+  const matches = all.filter((e) => e.addedBy?.id === userId && !e.addedBy?.deleted);
+
+  await Promise.all(matches.map((e) => putEvent({ ...e, addedBy: { deleted: true } }, s)));
+
+  return { anonymised: matches.length };
 }
 
 /**

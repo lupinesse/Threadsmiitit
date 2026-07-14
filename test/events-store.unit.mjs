@@ -18,6 +18,7 @@ import {
   listVisibleEvents,
   listPendingEvents,
   listOwnedEvents,
+  anonymizeEventsByUserId,
 } from '../netlify/functions/lib/eventsStore.mjs';
 import { createFakeStore } from './fakes/blobsStore.mjs';
 
@@ -386,6 +387,55 @@ describe('listOwnedEvents', () => {
       owned.map((e) => e.id).sort(),
       [approved.event.id, rejected.event.id].sort()
     );
+  });
+});
+
+describe('anonymizeEventsByUserId', () => {
+  // Regression: the /api/auth/delete callback used to be a no-op even though
+  // eventsStore persists the submitter's id/username/avatar/profileUrl.
+  it('replaces addedBy with {deleted: true} on every event submitted by that user id, across all statuses', async () => {
+    const store = createFakeStore();
+    const approved = await createEvent(validPartial, addedBy, store);
+    await moderateEvent(approved.event.id, 'approve', undefined, store);
+    const pending = await createEvent({ ...validPartial, title: 'Toinen' }, addedBy, store);
+    const otherUser = { ...addedBy, id: 'other-id', username: 'other' };
+    const untouched = await createEvent({ ...validPartial, title: 'Muun' }, otherUser, store);
+
+    const result = await anonymizeEventsByUserId(addedBy.id, store);
+    assert.strictEqual(result.anonymised, 2);
+
+    const anonymisedApproved = await getEvent(approved.event.id, store);
+    assert.deepStrictEqual(anonymisedApproved.addedBy, { deleted: true });
+    assert.strictEqual(anonymisedApproved.status, 'approved');
+    assert.strictEqual(anonymisedApproved.title, 'Threads-kahvit'); // event content is kept, not deleted
+
+    const anonymisedPending = await getEvent(pending.event.id, store);
+    assert.deepStrictEqual(anonymisedPending.addedBy, { deleted: true });
+
+    const stillAttributed = await getEvent(untouched.event.id, store);
+    assert.deepStrictEqual(stillAttributed.addedBy, otherUser);
+  });
+
+  it('is a no-op for a user id with no events', async () => {
+    const store = createFakeStore();
+    await createEvent(validPartial, addedBy, store);
+
+    const result = await anonymizeEventsByUserId('no-such-id', store);
+    assert.strictEqual(result.anonymised, 0);
+
+    const stillAttributed = await getEvent((await listAllEvents(store))[0].id, store);
+    assert.deepStrictEqual(stillAttributed.addedBy, addedBy);
+  });
+
+  it('is idempotent — running it twice does not error or double-count', async () => {
+    const store = createFakeStore();
+    await createEvent(validPartial, addedBy, store);
+
+    const first = await anonymizeEventsByUserId(addedBy.id, store);
+    assert.strictEqual(first.anonymised, 1);
+
+    const second = await anonymizeEventsByUserId(addedBy.id, store);
+    assert.strictEqual(second.anonymised, 0);
   });
 });
 
