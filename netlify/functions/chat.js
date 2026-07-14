@@ -16,7 +16,9 @@
  *   plans (where that edge rule silently doesn't apply), this function also
  *   enforces the same limit in-process via `lib/rate-limit.mjs`. That
  *   backstop is per-instance only (see its module doc comment) and, like
- *   the origin check, is bypassed under `netlify dev`.
+ *   the origin check, is bypassed under `netlify dev`. The bucket key is
+ *   resolved via `lib/client-ip.mjs`, which falls back to `X-Forwarded-For`
+ *   before giving up and bucketing unidentified clients together (#78).
  *
  * Upstream API errors (e.g. 429 Too Many Requests, 400 Bad Request) are
  * propagated to the caller with the real status code and a descriptive
@@ -34,6 +36,7 @@ import { isOriginAllowed, validatePrompt } from './lib/validate-chat-request.mjs
 import { callAnthropic } from './lib/anthropic-proxy.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
 import { isWithinRateLimit } from './lib/rate-limit.mjs';
+import { resolveClientId } from './lib/client-ip.mjs';
 
 initSentry();
 
@@ -73,7 +76,13 @@ async function handler(req) {
     });
   }
 
-  const clientIp = req.headers.get('x-nf-client-connection-ip') ?? 'unknown';
+  const { id: clientIp, identified } = resolveClientId(req.headers);
+  if (!identified) {
+    console.warn(
+      '[/api/chat] no client-identifying header present — bucketing under the shared "unknown" rate limit key',
+      { clientIp }
+    );
+  }
   if (!isNetlifyDev && !isWithinRateLimit(rateLimitStore, clientIp)) {
     console.info('[/api/chat] rate limit exceeded (in-function backstop)', { clientIp });
     return new Response(JSON.stringify({ error: 'Too many requests' }), {
