@@ -4,9 +4,10 @@
  * Meta's required uninstall callback. Called by Meta when a user
  * deauthorizes this app from their Threads account.
  *
- * This app stores no user data server-side — profile data lives only in the
- * user's own browser localStorage and is cleared on logout. This endpoint
- * acknowledges the webhook as required by Meta's platform policy.
+ * Deauthorizing the app doesn't imply a data-deletion request — that's a
+ * separate callback (`auth-delete.js`), which does scrub the requesting
+ * user's data. This endpoint just acknowledges the webhook, as required by
+ * Meta's platform policy.
  *
  * @param {Request} req
  * @returns {Response}
