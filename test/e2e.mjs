@@ -451,3 +451,23 @@ describe('End-to-end: chat assistant remove confirmation', () => {
     await act(async () => unmount());
   });
 });
+
+describe('Bottom nav — lazy-loaded screens (regression, #81)', () => {
+  it('renders Kalenteri and Info after code-splitting them via React.lazy', async (t) => {
+    mockFetch(t, {
+      'GET /api/auth/whoami': { status: 401, body: null },
+      'GET /api/events': { body: { events: [APPROVED_EVENT] } },
+    });
+
+    const { unmount } = render(React.createElement(AuthProvider, null, React.createElement(App)));
+    await screen.findByText(TEST_TITLE);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kalenteri' }));
+    await screen.findByText('MA'); // weekday header, only rendered by ScreenKalenteri
+
+    fireEvent.click(screen.getByRole('button', { name: 'Info' }));
+    await screen.findByText('THREADSMIITIT');
+
+    await act(async () => unmount());
+  });
+});
