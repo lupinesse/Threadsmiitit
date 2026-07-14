@@ -5,7 +5,7 @@
  * or the network.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
@@ -191,6 +191,90 @@ describe('postBatch', () => {
     assert.strictEqual(successes, 0);
     assert.strictEqual(publishCalls, 0);
     assert.strictEqual(successCalls, 0);
+  });
+
+  it('uses a custom errorLog when publish fails, so callers preserve their original wording', async () => {
+    const errorMock = mock.method(console, 'error', () => {});
+    try {
+      await postBatch({
+        items: [{ id: 'a' }],
+        dryRun: false,
+        logPrefix: '[bot-x]',
+        renderText: (item) => item.id,
+        publishOne: async () => {
+          throw new Error('boom');
+        },
+        onSuccess: async () => {},
+        errorLog: (item) => `failed to announce event ${item.id}`,
+      });
+      assert.strictEqual(errorMock.mock.callCount(), 1);
+      assert.strictEqual(
+        errorMock.mock.calls[0].arguments[0],
+        '[bot-x] failed to announce event a'
+      );
+    } finally {
+      errorMock.mock.restore();
+    }
+  });
+
+  it('falls back to the default error wording when errorLog is not provided', async () => {
+    const errorMock = mock.method(console, 'error', () => {});
+    try {
+      await postBatch({
+        items: [{ id: 'a' }],
+        dryRun: false,
+        logPrefix: '[bot-x]',
+        renderText: (item) => item.id,
+        publishOne: async () => {
+          throw new Error('boom');
+        },
+        onSuccess: async () => {},
+      });
+      assert.strictEqual(errorMock.mock.calls[0].arguments[0], '[bot-x] failed to post for item a');
+    } finally {
+      errorMock.mock.restore();
+    }
+  });
+
+  it('uses a custom dryRunVerb in the dry-run log, so callers preserve their original wording', async () => {
+    const logMock = mock.method(console, 'log', () => {});
+    try {
+      await postBatch({
+        items: [{ id: 'a' }],
+        dryRun: true,
+        logPrefix: '[bot-x]',
+        renderText: (item) => `text-${item.id}`,
+        publishOne: async () => {},
+        onSuccess: async () => {},
+        dryRunVerb: 'reply',
+      });
+      assert.strictEqual(
+        logMock.mock.calls[0].arguments[0],
+        '[bot-x] DRY RUN — would reply: text-a'
+      );
+    } finally {
+      logMock.mock.restore();
+    }
+  });
+
+  it('defaults dryRunVerb to "post" when not provided', async () => {
+    const logMock = mock.method(console, 'log', () => {});
+    try {
+      await postBatch({
+        items: [{ id: 'a' }],
+        dryRun: true,
+        logPrefix: '[bot-x]',
+        renderText: (item) => `text-${item.id}`,
+        publishOne: async () => {},
+        onSuccess: async () => {},
+      });
+      assert.strictEqual(
+        logMock.mock.calls[0].arguments[0],
+        '[bot-x] DRY RUN — would post: text-a'
+      );
+    } finally {
+      logMock.mock.restore();
+    }
   });
 });
 

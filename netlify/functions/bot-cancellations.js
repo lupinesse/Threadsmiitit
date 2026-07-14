@@ -88,6 +88,7 @@ export function createHandler({
           fetchImpl,
         }),
       successLog: (event) => `announced cancellation of event ${event.id}`,
+      errorLog: (event) => `failed to announce event ${event.id}`,
       onSuccess: async (event) => {
         state = await persistAnnounced({
           state,

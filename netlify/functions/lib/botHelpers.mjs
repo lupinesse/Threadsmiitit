@@ -48,9 +48,13 @@ export async function fetchAndFilterEvents({ eventsStore, state, kind, cap }) {
  * batch, mirroring the skip-and-continue pattern the trigger functions used
  * inline before this extraction.
  *
- * In dry-run mode, `publishOne` is not called; only the "would post" line
+ * In dry-run mode, `publishOne` is not called; only the "would <verb>" line
  * is logged, and `onSuccess` still fires so callers can persist the
  * mark-announced state exactly as they do in the real branch.
+ *
+ * `successLog`, `errorLog`, and `dryRunVerb` let each caller preserve its
+ * original per-site log wording after this extraction (existing observers
+ * grepping for e.g. `failed to announce event` keep matching).
  *
  * @param {object} params
  * @param {ReadonlyArray<{id: string}>} params.items
@@ -62,8 +66,13 @@ export async function fetchAndFilterEvents({ eventsStore, state, kind, cap }) {
  * @param {(item: {id: string}) => Promise<void>} params.onSuccess -
  *   Called after every successful post (or dry-run log). Callers persist mark-announced state here.
  * @param {(item: {id: string}) => string} [params.successLog] -
- *   If provided, the returned string is logged as `${logPrefix} ${successLog(item)}` after each real
- *   post. Not logged in dry-run — the "would post" line already covers that path.
+ *   If provided, `${logPrefix} ${successLog(item)}` is logged after each real post.
+ *   Not logged in dry-run — the "would <verb>" line already covers that path.
+ * @param {(item: {id: string}) => string} [params.errorLog] -
+ *   If provided, `${logPrefix} ${errorLog(item)}` is logged (with the caught error) when
+ *   `publishOne` throws. Defaults to `'failed to post for item ${item.id}'`.
+ * @param {string} [params.dryRunVerb] - Verb used in the dry-run log
+ *   (`${logPrefix} DRY RUN — would ${dryRunVerb}: ${text}`). Defaults to `'post'`.
  * @returns {Promise<number>} Number of items successfully posted or dry-run-logged.
  */
 export async function postBatch({
@@ -74,12 +83,14 @@ export async function postBatch({
   publishOne,
   onSuccess,
   successLog,
+  errorLog,
+  dryRunVerb = 'post',
 }) {
   let successes = 0;
   for (const item of items) {
     const text = renderText(item);
     if (dryRun) {
-      console.log(`${logPrefix} DRY RUN — would post: ${text}`);
+      console.log(`${logPrefix} DRY RUN — would ${dryRunVerb}: ${text}`);
     } else {
       try {
         await publishOne(item, text);
@@ -87,7 +98,8 @@ export async function postBatch({
         // Skip only this item — leaving it unmarked means the next tick
         // retries it — rather than aborting the whole batch on one
         // failure and leaving every other pending item unattempted too.
-        console.error(`${logPrefix} failed to post for item ${item.id}`, err);
+        const message = errorLog ? errorLog(item) : `failed to post for item ${item.id}`;
+        console.error(`${logPrefix} ${message}`, err);
         continue;
       }
       if (successLog) console.log(`${logPrefix} ${successLog(item)}`);

@@ -96,6 +96,8 @@ export function createHandler({
           fetchImpl,
         }),
       successLog: (event) => `announced new event ${event.id}`,
+      errorLog: (event) => `failed to announce event ${event.id}`,
+      dryRunVerb: 'reply',
       onSuccess: async (event) => {
         state = await persistAnnounced({
           state,
