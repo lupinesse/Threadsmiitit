@@ -17,14 +17,8 @@
  * @returns {Promise<Response>}
  */
 import { BOT_ENABLED, BOT_DRY_RUN, THREADS_BOT_USER_ID } from './lib/botConfig.mjs';
-import { listAllEvents } from './lib/eventsStore.mjs';
-import {
-  getBotState,
-  putBotState,
-  getBotToken,
-  newlyApproved,
-  markAnnounced,
-} from './lib/botState.mjs';
+import { getBotState, getBotToken } from './lib/botState.mjs';
+import { fetchAndFilterEvents, postBatch, persistAnnounced } from './lib/botHelpers.mjs';
 import { renderDailyRoot, renderDailyReply } from '../../shared/postTemplates.mjs';
 import { publish } from './lib/threadsClient.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
@@ -57,9 +51,8 @@ export function createHandler({
       return new Response(null, { status: 204 });
     }
 
-    const events = await listAllEvents(eventsStore);
     let state = await getBotState(botStateStore);
-    const pending = newlyApproved(events, state);
+    const { pending } = await fetchAndFilterEvents({ eventsStore, state, kind: 'new' });
 
     if (pending.length === 0) {
       console.log('[bot-post-daily-background] nothing new to announce — no-op');
@@ -89,31 +82,29 @@ export function createHandler({
       console.log(`[bot-post-daily-background] posted daily root (id ${rootId})`);
     }
 
-    for (const event of pending) {
-      const replyText = renderDailyReply(event);
-      if (dryRun) {
-        console.log(`[bot-post-daily-background] DRY RUN — would reply: ${replyText}`);
-      } else {
-        try {
-          await publish({
-            accessToken: token.accessToken,
-            threadsUserId: THREADS_BOT_USER_ID,
-            text: replyText,
-            replyToId: rootId,
-            fetchImpl,
-          });
-          console.log(`[bot-post-daily-background] announced new event ${event.id}`);
-        } catch (err) {
-          // Skip only this reply — leaving it unmarked means the next
-          // daily run retries it — rather than aborting the rest of the
-          // thread because one reply's post call failed.
-          console.error(`[bot-post-daily-background] failed to announce event ${event.id}`, err);
-          continue;
-        }
-      }
-      state = markAnnounced(state, 'new', event.id);
-      await putBotState(state, botStateStore);
-    }
+    await postBatch({
+      items: pending,
+      dryRun,
+      logPrefix: '[bot-post-daily-background]',
+      renderText: (event) => renderDailyReply(event),
+      publishOne: (_event, text) =>
+        publish({
+          accessToken: token.accessToken,
+          threadsUserId: THREADS_BOT_USER_ID,
+          text,
+          replyToId: rootId,
+          fetchImpl,
+        }),
+      successLog: (event) => `announced new event ${event.id}`,
+      onSuccess: async (event) => {
+        state = await persistAnnounced({
+          state,
+          botStateStore,
+          kind: 'new',
+          eventId: event.id,
+        });
+      },
+    });
 
     return new Response(null, { status: 204 });
   };
