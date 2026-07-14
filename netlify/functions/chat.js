@@ -18,6 +18,12 @@
  *   Netlify Blobs store so the limit holds across every warm function
  *   instance rather than resetting per instance (see its module doc
  *   comment). Like the origin check, it's bypassed under `netlify dev`.
+ *   The bucket key is resolved via `lib/client-ip.mjs`, which falls back
+ *   to `X-Forwarded-For` before giving up and bucketing unidentified
+ *   clients together (#78). Every log line in this handler includes
+ *   `requestId` (from Netlify's `x-nf-request-id`, or a generated UUID
+ *   outside Netlify) so a single request's config, rate-limit, and error
+ *   logs can be correlated.
  *
  * Upstream API errors (e.g. 429 Too Many Requests, 400 Bad Request) are
  * propagated to the caller with the real status code and a descriptive
@@ -35,6 +41,7 @@ import { isOriginAllowed, validatePrompt } from './lib/validate-chat-request.mjs
 import { callAnthropic } from './lib/anthropic-proxy.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
 import { isWithinRateLimit } from './lib/rate-limit.mjs';
+import { resolveClientId } from './lib/client-ip.mjs';
 
 initSentry();
 
@@ -46,6 +53,12 @@ async function handler(req) {
     return new Response(null, { status: 405 });
   }
 
+  // Netlify sets x-nf-request-id on every request; falling back to a
+  // generated id only matters under netlify dev or non-Netlify test
+  // invocations. Logged on every log line below so a request's config,
+  // rate-limit, and error logs can all be correlated to one another.
+  const requestId = req.headers.get('x-nf-request-id') ?? crypto.randomUUID();
+
   const isNetlifyDev = process.env.NETLIFY_DEV === 'true';
   const originAllowed = isOriginAllowed(
     req.headers.get('origin'),
@@ -54,6 +67,7 @@ async function handler(req) {
     isNetlifyDev
   );
   console.info('[/api/chat] config in effect', {
+    requestId,
     allowedOrigin: ALLOWED_ORIGIN,
     netlifyDev: isNetlifyDev,
     anthropicKeyConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
@@ -67,9 +81,15 @@ async function handler(req) {
     });
   }
 
-  const clientIp = req.headers.get('x-nf-client-connection-ip') ?? 'unknown';
+  const { id: clientIp, identified } = resolveClientId(req.headers);
+  if (!identified) {
+    console.warn(
+      '[/api/chat] no client-identifying header present — bucketing under the shared "unknown" rate limit key',
+      { requestId, clientIp }
+    );
+  }
   if (!isNetlifyDev && !(await isWithinRateLimit(clientIp))) {
-    console.info('[/api/chat] rate limit exceeded (in-function backstop)', { clientIp });
+    console.info('[/api/chat] rate limit exceeded (in-function backstop)', { requestId, clientIp });
     return new Response(JSON.stringify({ error: 'Too many requests' }), {
       status: 429,
       headers: { 'Content-Type': 'application/json' },

@@ -59,6 +59,10 @@ const ScreenInfo = lazy(() =>
  * Minimal loading placeholder shown in the tab content area while a
  * lazy-loaded screen's chunk is still being fetched, so switching tabs on a
  * slow connection shows *something* rather than a blank flash.
+ *
+ * Kept local to App.jsx rather than its own module: it's only used by the
+ * two `Suspense` boundaries below, both in this file. Extract it if a third
+ * consumer appears elsewhere in the tree.
  * @param {{t: {inkSoft: string, fontHead: string}}} props - `t` is the
  *   active theme's token object; only `inkSoft` and `fontHead` are used.
  * @returns {JSX.Element}
@@ -724,6 +728,11 @@ export default function App() {
         </Sheet>
 
         {/* ── Admin moderation inbox ────────────────────────────────── */}
+        {/* No loading indicator: both sheets start closed (`open={false}`)
+            and render nothing until their own `open` prop flips true, so
+            their chunk has time to load in the background before the user
+            ever sees the sheet — a "Ladataan…" flash here would only show
+            while nothing is visible anyway. */}
         {isAdmin && (
           <Suspense fallback={null}>
             <AdminInbox
