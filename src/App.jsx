@@ -6,15 +6,13 @@
  * so it fills the viewport on mobile and stays centred on desktop.
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import { makeTheme } from './theme.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import EventStore from './store/EventStore.js';
 import NotificationStore from './store/NotificationStore.js';
 import { MeetupDetail, Sheet, ConfirmSheet, hexA } from './components/ui.jsx';
 import { ProfileSheet } from './components/ProfileSheet.jsx';
-import { AdminInbox } from './components/AdminInbox.jsx';
-import { ChatAssistant } from './components/ChatAssistant.jsx';
 import { ScreenMiitit } from './screens/ScreenMiitit.jsx';
 import { ScreenKalenteri } from './screens/ScreenKalenteri.jsx';
 import { ScreenLisaa } from './screens/ScreenLisaa.jsx';
@@ -30,6 +28,16 @@ import {
   IconThreads,
   IconShield,
 } from './components/icons.jsx';
+
+// Code-split: AdminInbox (admin-only) and ChatAssistant are loaded on first
+// use rather than bundled into the initial chunk (see issue #81 — 776 KB
+// single-chunk warning from `npm run build`).
+const AdminInbox = lazy(() =>
+  import('./components/AdminInbox.jsx').then((m) => ({ default: m.AdminInbox }))
+);
+const ChatAssistant = lazy(() =>
+  import('./components/ChatAssistant.jsx').then((m) => ({ default: m.ChatAssistant }))
+);
 
 const THEME = makeTheme('social', 'monodark');
 
@@ -114,6 +122,10 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [adminOpen, setAdminOpen] = useState(false);
+  // Once true, stays true — keeps the lazy-loaded sheet mounted (for its
+  // close animation) rather than reloading the chunk on every re-open.
+  const [adminEverOpened, setAdminEverOpened] = useState(false);
+  const [chatEverOpened, setChatEverOpened] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState(null);
@@ -124,6 +136,15 @@ export default function App() {
     () => NotificationStore.getNewMeetups(events, notifPref),
     [events, notifPref]
   );
+
+  // Trigger the lazy chunks the first time each sheet is actually opened,
+  // rather than eagerly on mount.
+  useEffect(() => {
+    if (adminOpen) setAdminEverOpened(true);
+  }, [adminOpen]);
+  useEffect(() => {
+    if (chatOpen) setChatEverOpened(true);
+  }, [chatOpen]);
 
   function subscribeCity(cityKey) {
     NotificationStore.setPreference(cityKey, events);
@@ -673,18 +694,29 @@ export default function App() {
           />
         </Sheet>
 
-        {/* ── Admin moderation inbox ────────────────────────────────── */}
-        {isAdmin && (
-          <AdminInbox
-            t={t}
-            open={adminOpen}
-            onClose={() => setAdminOpen(false)}
-            refresh={refresh}
-          />
+        {/* ── Admin moderation inbox (lazy: only admins ever load it) ── */}
+        {isAdmin && adminEverOpened && (
+          <Suspense fallback={null}>
+            <AdminInbox
+              t={t}
+              open={adminOpen}
+              onClose={() => setAdminOpen(false)}
+              refresh={refresh}
+            />
+          </Suspense>
         )}
 
-        {/* ── Chat assistant sheet ───────────────────────────────────── */}
-        <ChatAssistant t={t} open={chatOpen} onClose={() => setChatOpen(false)} refresh={refresh} />
+        {/* ── Chat assistant sheet (lazy: loaded on first open) ───────── */}
+        {chatEverOpened && (
+          <Suspense fallback={null}>
+            <ChatAssistant
+              t={t}
+              open={chatOpen}
+              onClose={() => setChatOpen(false)}
+              refresh={refresh}
+            />
+          </Suspense>
+        )}
       </div>
     </div>
   );
