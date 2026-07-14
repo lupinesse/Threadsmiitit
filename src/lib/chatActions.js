@@ -115,6 +115,12 @@ export async function applyAction(a, link, user) {
     };
   }
 
+  // Every recognised op (add/edit/remove) is handled above and returns
+  // before this point. Reaching here means the model emitted an op we don't
+  // know, or an edit/remove with no id — surfaced as a warning so a model
+  // regression producing malformed actions is visible rather than silently
+  // dropped.
+  console.warn(`chatActions.applyAction: unhandled action`, a);
   return null;
 }
 

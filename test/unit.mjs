@@ -857,6 +857,22 @@ describe('ChatAssistant.applyAction — edit/remove no longer mutate immediately
     assert.strictEqual(result.action.id, 'ab12');
     assert.strictEqual(result.action.title, 'Uusi nimi');
   });
+
+  // A model-emitted op we don't recognise (or an edit/remove with no id)
+  // must not fail silently — it's logged so a model regression is visible.
+  it('warns and returns null for an unrecognised op instead of failing silently', async (t) => {
+    const warnCalls = t.mock.method(console, 'warn', () => {});
+    const result = await applyAction({ op: 'archive', id: 'ab12' }, null, USER);
+    assert.strictEqual(result, null);
+    assert.strictEqual(warnCalls.mock.calls.length, 1);
+  });
+
+  it('warns and returns null for an edit/remove action missing an id', async (t) => {
+    const warnCalls = t.mock.method(console, 'warn', () => {});
+    const result = await applyAction({ op: 'remove' }, null, USER);
+    assert.strictEqual(result, null);
+    assert.strictEqual(warnCalls.mock.calls.length, 1);
+  });
 });
 
 describe('ChatAssistant.executeConfirmedAction — remove', () => {
@@ -879,6 +895,7 @@ describe('ChatAssistant.executeConfirmedAction — remove', () => {
     const result = await executeConfirmedAction({ op: 'remove', id: 'zzzz' }, { id: 'u1' });
     assert.strictEqual(result.changed, false);
     assert.strictEqual(result.kind, 'error');
+    assert.strictEqual(result.label, 'Tunnistetta #zzzz ei löytynyt');
   });
 
   it('returns null without a signed-in user, and never calls fetch', async (t) => {
@@ -902,6 +919,17 @@ describe('ChatAssistant.executeConfirmedAction — edit', () => {
     assert.strictEqual(result.event.title, 'Uusi nimi');
     assert.strictEqual(calls[0].url, '/api/events?id=ab12');
     assert.strictEqual(calls[0].opts.method, 'PATCH');
+  });
+
+  it('reports an error for an id the server rejects', async (t) => {
+    mockFetchOnce(t, { error: 'not_found' }, 404);
+    const result = await executeConfirmedAction(
+      { op: 'edit', id: 'zzzz', title: 'x' },
+      { id: 'u1' }
+    );
+    assert.strictEqual(result.changed, false);
+    assert.strictEqual(result.kind, 'error');
+    assert.strictEqual(result.label, 'Tunnistetta #zzzz ei löytynyt');
   });
 });
 
