@@ -1169,6 +1169,46 @@ describe('isWithinRateLimit', () => {
   });
 });
 
+// ── client-ip ────────────────────────────────────────────────────────────────
+
+import { resolveClientId, UNKNOWN_CLIENT_ID } from '../netlify/functions/lib/client-ip.mjs';
+
+describe('resolveClientId', () => {
+  it('prefers the Netlify connection-IP header when present', () => {
+    const headers = new Headers({
+      'x-nf-client-connection-ip': '203.0.113.1',
+      'x-forwarded-for': '198.51.100.1',
+    });
+    assert.deepStrictEqual(resolveClientId(headers), { id: '203.0.113.1', identified: true });
+  });
+
+  it('falls back to X-Forwarded-For when the Netlify header is absent', () => {
+    const headers = new Headers({ 'x-forwarded-for': '198.51.100.1' });
+    assert.deepStrictEqual(resolveClientId(headers), { id: '198.51.100.1', identified: true });
+  });
+
+  it('takes the left-most (original client) entry from a proxy chain', () => {
+    const headers = new Headers({ 'x-forwarded-for': '198.51.100.1, 10.0.0.1, 10.0.0.2' });
+    assert.deepStrictEqual(resolveClientId(headers), { id: '198.51.100.1', identified: true });
+  });
+
+  it('falls back to the shared "unknown" bucket when neither header is present', () => {
+    const headers = new Headers();
+    assert.deepStrictEqual(resolveClientId(headers), {
+      id: UNKNOWN_CLIENT_ID,
+      identified: false,
+    });
+  });
+
+  it('treats an empty X-Forwarded-For value the same as absent', () => {
+    const headers = new Headers({ 'x-forwarded-for': '' });
+    assert.deepStrictEqual(resolveClientId(headers), {
+      id: UNKNOWN_CLIENT_ID,
+      identified: false,
+    });
+  });
+});
+
 // ── anthropic-proxy ──────────────────────────────────────────────────────────
 
 import { callAnthropic } from '../netlify/functions/lib/anthropic-proxy.mjs';
