@@ -19,15 +19,8 @@ import {
   THREADS_BOT_USER_ID,
   CANCELLATION_BATCH_SIZE,
 } from './lib/botConfig.mjs';
-import { listAllEvents } from './lib/eventsStore.mjs';
-import {
-  getBotState,
-  putBotState,
-  getBotToken,
-  newlyCancelled,
-  markAnnounced,
-  updateSnapshot,
-} from './lib/botState.mjs';
+import { getBotState, putBotState, getBotToken, updateSnapshot } from './lib/botState.mjs';
+import { fetchAndFilterEvents, postBatch, persistAnnounced } from './lib/botHelpers.mjs';
 import { renderCancellation } from '../../shared/postTemplates.mjs';
 import { publish } from './lib/threadsClient.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
@@ -62,9 +55,13 @@ export function createHandler({
       return new Response(null, { status: 204 });
     }
 
-    const events = await listAllEvents(eventsStore);
     let state = await getBotState(botStateStore);
-    const pending = newlyCancelled(events, state).slice(0, CANCELLATION_BATCH_SIZE);
+    const { events, pending } = await fetchAndFilterEvents({
+      eventsStore,
+      state,
+      kind: 'cancelled',
+      cap: CANCELLATION_BATCH_SIZE,
+    });
 
     if (pending.length === 0) {
       console.log('[bot-cancellations] nothing new to announce');
@@ -78,30 +75,29 @@ export function createHandler({
       return new Response(null, { status: 204 });
     }
 
-    for (const event of pending) {
-      const { text } = renderCancellation(event);
-      if (dryRun) {
-        console.log(`[bot-cancellations] DRY RUN — would post: ${text}`);
-      } else {
-        try {
-          await publish({
-            accessToken: token.accessToken,
-            threadsUserId: THREADS_BOT_USER_ID,
-            text,
-            fetchImpl,
-          });
-          console.log(`[bot-cancellations] announced cancellation of event ${event.id}`);
-        } catch (err) {
-          // Skip only this event — leaving it unmarked means the next tick
-          // retries it — rather than aborting the whole batch on one
-          // failure and leaving every other pending event unattempted too.
-          console.error(`[bot-cancellations] failed to announce event ${event.id}`, err);
-          continue;
-        }
-      }
-      state = markAnnounced(state, 'cancelled', event.id);
-      await putBotState(state, botStateStore);
-    }
+    await postBatch({
+      items: pending,
+      dryRun,
+      logPrefix: '[bot-cancellations]',
+      renderText: (event) => renderCancellation(event).text,
+      publishOne: (_event, text) =>
+        publish({
+          accessToken: token.accessToken,
+          threadsUserId: THREADS_BOT_USER_ID,
+          text,
+          fetchImpl,
+        }),
+      successLog: (event) => `announced cancellation of event ${event.id}`,
+      errorLog: (event) => `failed to announce event ${event.id}`,
+      onSuccess: async (event) => {
+        state = await persistAnnounced({
+          state,
+          botStateStore,
+          kind: 'cancelled',
+          eventId: event.id,
+        });
+      },
+    });
 
     await putBotState(updateSnapshot(state, events), botStateStore);
     return new Response(null, { status: 204 });

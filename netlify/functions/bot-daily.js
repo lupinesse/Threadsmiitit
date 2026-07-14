@@ -13,8 +13,8 @@
  * @returns {Promise<Response>}
  */
 import { BOT_ENABLED, BOT_DRY_RUN, DAILY_DIGEST_HOUR_UTC } from './lib/botConfig.mjs';
-import { listAllEvents } from './lib/eventsStore.mjs';
-import { getBotState, putBotState, newlyApproved } from './lib/botState.mjs';
+import { getBotState, putBotState } from './lib/botState.mjs';
+import { fetchAndFilterEvents } from './lib/botHelpers.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
 
 initSentry();
@@ -50,9 +50,8 @@ export function createHandler({
       return new Response(null, { status: 204 });
     }
 
-    const events = await listAllEvents(eventsStore);
     const state = await getBotState(botStateStore);
-    const pending = newlyApproved(events, state);
+    const { pending } = await fetchAndFilterEvents({ eventsStore, state, kind: 'new' });
 
     if (pending.length === 0) {
       console.log('[bot-daily] nothing new to announce today');
