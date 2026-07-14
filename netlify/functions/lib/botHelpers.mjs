@@ -113,16 +113,20 @@ export async function postBatch({
 /**
  * Marks an event announced for a given trigger kind and immediately
  * persists the updated state, so a mid-batch failure never re-announces
- * events that already succeeded on a later retry. Returns the new state so
- * the caller can keep threading it through subsequent iterations without
- * losing the mark.
+ * events that already succeeded on a later retry.
+ *
+ * The input `state` is not mutated — `markAnnounced` produces a new
+ * object, which this function then writes to `botStateStore` and returns
+ * so the caller can thread it through subsequent iterations without
+ * losing the mark. The observable side effect is one blob-store write per
+ * call (`putBotState`); everything else is functional.
  *
  * @param {object} params
- * @param {import('./botState.mjs').BotState} params.state
- * @param {import('./botState.mjs').BlobStoreLike} [params.botStateStore]
+ * @param {import('./botState.mjs').BotState} params.state - Not mutated.
+ * @param {import('./botState.mjs').BlobStoreLike} [params.botStateStore] - Written to via `putBotState`.
  * @param {'new'|'cancelled'} params.kind
  * @param {string} params.eventId
- * @returns {Promise<import('./botState.mjs').BotState>} The updated state.
+ * @returns {Promise<import('./botState.mjs').BotState>} A new state with `eventId` marked announced.
  */
 export async function persistAnnounced({ state, botStateStore, kind, eventId }) {
   const updated = markAnnounced(state, kind, eventId);
