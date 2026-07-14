@@ -24,6 +24,32 @@
  */
 
 /**
+ * Resolve the token to use for the `resolveReviewThread`/`unresolveReviewThread`
+ * GraphQL mutations.
+ *
+ * GitHub App installation tokens cannot call these two mutations — GitHub
+ * rejects them with `"Resource not accessible by integration"` regardless of
+ * the App's granted `pull_requests: write` permission (a documented platform
+ * limitation; REST endpoints like posting a reply are unaffected). A classic
+ * or fine-grained PAT belonging to a real repo collaborator does not have
+ * this restriction, so callers should mint one and pass it via
+ * `THREAD_RESOLVE_TOKEN` for these two calls specifically, while continuing
+ * to use the App token for everything else (fetching threads, posting
+ * replies) so bot attribution in the UI is unaffected.
+ *
+ * @param {Record<string, string|undefined>} env - Environment bag (e.g. `process.env`).
+ * @param {string} fallbackToken - Token to use when no dedicated PAT is configured.
+ * @returns {string}
+ * @example
+ * resolveMutationToken({ THREAD_RESOLVE_TOKEN: 'pat-1' }, 'app-token') // → 'pat-1'
+ * resolveMutationToken({}, 'app-token')                                // → 'app-token'
+ */
+export function resolveMutationToken(env, fallbackToken) {
+  const dedicated = (env.THREAD_RESOLVE_TOKEN || '').trim();
+  return dedicated || fallbackToken;
+}
+
+/**
  * Build the standard headers for the GitHub REST API.
  * @param {string} token
  * @returns {Record<string, string>}
@@ -417,10 +443,14 @@ export async function postInlineComment({
  */
 export async function findOpenIssueByMarker({ token, owner, repo, marker }) {
   const query = `repo:${owner}/${repo} in:body "${marker}" is:issue is:open`;
-  const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}`, {
-    headers: ghHeaders(token),
-  });
-  if (!response.ok) throw new Error(`Search issues API ${response.status}: ${await response.text()}`);
+  const response = await fetch(
+    `https://api.github.com/search/issues?q=${encodeURIComponent(query)}`,
+    {
+      headers: ghHeaders(token),
+    }
+  );
+  if (!response.ok)
+    throw new Error(`Search issues API ${response.status}: ${await response.text()}`);
   const data = await response.json();
   return data.items?.[0] ?? null;
 }
@@ -441,16 +471,28 @@ export async function findOpenIssueByMarker({ token, owner, repo, marker }) {
  * @param {string[]} [params.labels]
  * @returns {Promise<{ issue: object, created: boolean }>}
  */
-export async function upsertTrackingIssue({ token, owner, repo, marker, title, body, labels = [] }) {
+export async function upsertTrackingIssue({
+  token,
+  owner,
+  repo,
+  marker,
+  title,
+  body,
+  labels = [],
+}) {
   const existing = await findOpenIssueByMarker({ token, owner, repo, marker });
 
   if (existing) {
-    const patchResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${existing.number}`, {
-      method: 'PATCH',
-      headers: ghHeaders(token),
-      body: JSON.stringify({ title, body }),
-    });
-    if (!patchResp.ok) throw new Error(`Patch issue API ${patchResp.status}: ${await patchResp.text()}`);
+    const patchResp = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${existing.number}`,
+      {
+        method: 'PATCH',
+        headers: ghHeaders(token),
+        body: JSON.stringify({ title, body }),
+      }
+    );
+    if (!patchResp.ok)
+      throw new Error(`Patch issue API ${patchResp.status}: ${await patchResp.text()}`);
     return { issue: await patchResp.json(), created: false };
   }
 
@@ -459,7 +501,8 @@ export async function upsertTrackingIssue({ token, owner, repo, marker, title, b
     headers: ghHeaders(token),
     body: JSON.stringify({ title, body, labels }),
   });
-  if (!postResp.ok) throw new Error(`Create issue API ${postResp.status}: ${await postResp.text()}`);
+  if (!postResp.ok)
+    throw new Error(`Create issue API ${postResp.status}: ${await postResp.text()}`);
   return { issue: await postResp.json(), created: true };
 }
 
@@ -475,19 +518,27 @@ export async function upsertTrackingIssue({ token, owner, repo, marker, title, b
  * @returns {Promise<object>}
  */
 export async function closeIssueWithComment({ token, owner, repo, issueNumber, comment }) {
-  const commentResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`, {
-    method: 'POST',
-    headers: ghHeaders(token),
-    body: JSON.stringify({ body: comment }),
-  });
-  if (!commentResp.ok) throw new Error(`Comment API ${commentResp.status}: ${await commentResp.text()}`);
+  const commentResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+    {
+      method: 'POST',
+      headers: ghHeaders(token),
+      body: JSON.stringify({ body: comment }),
+    }
+  );
+  if (!commentResp.ok)
+    throw new Error(`Comment API ${commentResp.status}: ${await commentResp.text()}`);
 
-  const closeResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`, {
-    method: 'PATCH',
-    headers: ghHeaders(token),
-    body: JSON.stringify({ state: 'closed' }),
-  });
-  if (!closeResp.ok) throw new Error(`Close issue API ${closeResp.status}: ${await closeResp.text()}`);
+  const closeResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+    {
+      method: 'PATCH',
+      headers: ghHeaders(token),
+      body: JSON.stringify({ state: 'closed' }),
+    }
+  );
+  if (!closeResp.ok)
+    throw new Error(`Close issue API ${closeResp.status}: ${await closeResp.text()}`);
   return closeResp.json();
 }
 
