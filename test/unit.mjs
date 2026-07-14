@@ -1041,47 +1041,131 @@ describe('validatePrompt', () => {
 
 import {
   isWithinRateLimit,
+  recordHit,
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX_REQUESTS,
 } from '../netlify/functions/lib/rate-limit.mjs';
+import { createFakeStore } from './fakes/blobsStore.mjs';
+
+describe('recordHit', () => {
+  it('allows and records a hit when given an empty history', () => {
+    const result = recordHit([], 0, 1000, 5);
+    assert.deepStrictEqual(result, { allowed: true, hits: [0] });
+  });
+
+  it('prunes hits at or beyond the window boundary and keeps ones just inside it', () => {
+    const result = recordHit([0, 500, 999], 1000, 1000, 5);
+    assert.deepStrictEqual(result, { allowed: true, hits: [500, 999, 1000] });
+  });
+
+  it('denies without mutating the list when already at max, even with hits pending pruning', () => {
+    const result = recordHit([10, 20, 30], 40, 1000, 3);
+    assert.deepStrictEqual(result, { allowed: false, hits: [10, 20, 30] });
+  });
+
+  it('does not depend on input order — an unsorted history prunes and counts the same', () => {
+    const sorted = recordHit([10, 5000, 20], 6000, 1000, 5);
+    const unsorted = recordHit([5000, 20, 10], 6000, 1000, 5);
+    assert.deepStrictEqual(sorted, unsorted);
+  });
+});
 
 describe('isWithinRateLimit', () => {
-  it('allows requests under the limit', () => {
-    const store = new Map();
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0 }), true);
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1 }), true);
+  it('allows requests under the limit', async () => {
+    const store = createFakeStore();
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, store }), true);
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 1, store }), true);
   });
 
-  it('denies once a key reaches its max within the window', () => {
-    const store = new Map();
+  it('denies once a key reaches its max within the window', async () => {
+    const store = createFakeStore();
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
-      assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: i }), true);
+      assert.strictEqual(await isWithinRateLimit('ip1', { now: i, store }), true);
     }
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: RATE_LIMIT_MAX_REQUESTS }), false);
+    assert.strictEqual(
+      await isWithinRateLimit('ip1', { now: RATE_LIMIT_MAX_REQUESTS, store }),
+      false
+    );
   });
 
-  it('allows again once old hits fall outside the window', () => {
-    const store = new Map();
+  it('allows again once old hits fall outside the window', async () => {
+    const store = createFakeStore();
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
-      isWithinRateLimit(store, 'ip1', { now: i });
+      await isWithinRateLimit('ip1', { now: i, store });
     }
     const afterWindow = RATE_LIMIT_WINDOW_MS + 1;
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: afterWindow }), true);
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: afterWindow, store }), true);
   });
 
-  it('tracks separate keys independently', () => {
-    const store = new Map();
+  it('tracks separate keys independently', async () => {
+    const store = createFakeStore();
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS; i++) {
-      isWithinRateLimit(store, 'ip1', { now: i });
+      await isWithinRateLimit('ip1', { now: i, store });
     }
-    assert.strictEqual(isWithinRateLimit(store, 'ip2', { now: 0 }), true);
+    assert.strictEqual(await isWithinRateLimit('ip2', { now: 0, store }), true);
   });
 
-  it('respects injected windowMs/max overrides', () => {
-    const store = new Map();
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 0, max: 1 }), true);
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 1, max: 1 }), false);
-    assert.strictEqual(isWithinRateLimit(store, 'ip1', { now: 100, windowMs: 50, max: 1 }), true);
+  it('respects injected windowMs/max overrides', async () => {
+    const store = createFakeStore();
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, max: 1, store }), true);
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 1, max: 1, store }), false);
+    assert.strictEqual(
+      await isWithinRateLimit('ip1', { now: 100, windowMs: 50, max: 1, store }),
+      true
+    );
+  });
+
+  it('persists hits across separate calls sharing the same store, proving distribution across instances', async () => {
+    // Simulates two warm function instances hitting the same key: each call
+    // resolves its own store handle, but both point at the same backing
+    // store, unlike the old per-instance in-memory Map.
+    const store = createFakeStore();
+    for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS - 1; i++) {
+      assert.strictEqual(await isWithinRateLimit('shared-ip', { now: i, store }), true);
+    }
+    assert.strictEqual(
+      await isWithinRateLimit('shared-ip', { now: RATE_LIMIT_MAX_REQUESTS - 1, store }),
+      true
+    );
+    assert.strictEqual(
+      await isWithinRateLimit('shared-ip', { now: RATE_LIMIT_MAX_REQUESTS, store }),
+      false
+    );
+  });
+
+  it('fails open (allows the request) if the Blobs store errors', async () => {
+    const store = {
+      async get() {
+        throw new Error('Blobs read failed');
+      },
+      async set() {
+        throw new Error('Blobs write failed');
+      },
+    };
+    assert.strictEqual(await isWithinRateLimit('ip1', { now: 0, store }), true);
+  });
+
+  it('logs the failure when it fails open, so a real Blobs outage is observable', async () => {
+    const readError = new Error('Blobs read failed');
+    const store = {
+      async get() {
+        throw readError;
+      },
+      async set() {},
+    };
+    const originalConsoleError = console.error;
+    const loggedCalls = [];
+    console.error = (...args) => loggedCalls.push(args);
+    try {
+      await isWithinRateLimit('ip1', { now: 0, store });
+    } finally {
+      console.error = originalConsoleError;
+    }
+    assert.strictEqual(loggedCalls.length, 1);
+    const [message, details] = loggedCalls[0];
+    assert.match(message, /Blobs store error/);
+    assert.strictEqual(details.key, 'ip1');
+    assert.strictEqual(details.error, readError);
   });
 });
 
