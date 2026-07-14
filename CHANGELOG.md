@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `.github/CODEOWNERS` requesting review from the repo owner on any change to `netlify/functions/lib/admins.mjs`, the hardcoded moderator list (#79), so an admin-list change is never silent. Enabling GitHub's "Require review from Code Owners" branch protection rule on `main` — needed for this to actually block a merge rather than just request review — is a repo setting for the project maintainer(s), not something this file can do alone; worth turning on once there's more than one maintainer with merge rights.
+
 ### Changed
 - Defer `@sentry/react` (~475 KB) to load after first paint instead of blocking initial render (#81 follow-up to the code-split below, which deliberately left this piece as future work since `AppErrorBoundary` used `Sentry.ErrorBoundary` synchronously at the top of the render tree). `AppErrorBoundary` is now a plain `Component`-based boundary (`src/lib/reportError.js` holds the extracted, unit-tested reporting logic) that lazily imports Sentry only to report a caught error, so the boundary no longer forces Sentry into the first-load bundle; `main.jsx` loads and initialises Sentry via `requestIdleCallback` (with a `setTimeout` fallback). Clears the remaining "chunks larger than 500 kB" build warning — initial chunk drops from 689 KB to 243 KB (74 KB gzip).
 

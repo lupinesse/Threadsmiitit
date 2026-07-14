@@ -1,0 +1,12 @@
+# CODEOWNERS — requests review from the listed owner(s) whenever a matching
+# file changes, so a change to the admin list is never silent (issue #79).
+#
+# This alone doesn't block a merge — that requires enabling "Require review
+# from Code Owners" under Settings → Branches → Branch protection rules for
+# `main`, which is a repo setting for the project maintainer(s) to turn on,
+# not something this file can do by itself. Worth enabling once there's more
+# than one maintainer with merge rights.
+
+# The static admin/moderator list — a change here grants or revokes
+# moderation privileges, so route it through the repo owner.
+/netlify/functions/lib/admins.mjs @lupinesse
