@@ -14,7 +14,15 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { CITIES, CATEGORIES, DH } from '../data.js';
 import EventStore from '../store/EventStore.js';
 import { complete } from '../api/claude.js';
-import { parseThreadsLink, parseJSON, applyAction } from '../lib/chatActions.js';
+import {
+  parseThreadsLink,
+  parseJSON,
+  applyAction,
+  executeConfirmedAction,
+  patchPendingAction,
+  resolvePendingAction,
+  dismissPendingAction,
+} from '../lib/chatActions.js';
 import { hexA, cityName } from './ui.jsx';
 import { IconSpark, IconClose, IconCheck, IconArrowUpRight } from './icons.jsx';
 
@@ -171,10 +179,107 @@ function ResultChip({ r, t, ct }) {
 }
 
 /**
- * A single chat message bubble (user or assistant).
- * @param {object} props
+ * Confirmation chip for a destructive `edit`/`remove` action the assistant
+ * proposed but has not yet executed. Mirrors `ConfirmSheet`'s tap-to-confirm
+ * pattern (explicit confirm button, cancel option, busy state, inline error)
+ * so nothing mutates `EventStore` until the user explicitly taps confirm.
+ * @param {object} props - Props: p (pending entry: {id, kind, label, action, busy, error}), ct, onConfirm, onCancel.
  */
-function Bubble({ m, t, ct }) {
+function PendingActionChip({ p, ct, onConfirm, onCancel }) {
+  const confirmLabel = p.kind === 'remove' ? 'Poista' : 'Tallenna muutos';
+  const idLabel = `#${p.action.id}`;
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        padding: '10px 12px',
+        borderRadius: 14,
+        background: ct.surface,
+        border: `1px solid ${ct.line}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: hexA('#C2483F', 0.14),
+            color: '#C2483F',
+          }}
+        >
+          <IconClose size={16} />
+        </div>
+        <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 700, color: ct.ink }}>
+          {p.label}
+        </div>
+      </div>
+      {p.error && (
+        <p
+          role="alert"
+          style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 600, color: '#C2483F' }}
+        >
+          {p.error}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button
+          aria-label={`Peruuta — miitti ${idLabel}`}
+          onClick={onCancel}
+          disabled={p.busy}
+          style={{
+            all: 'unset',
+            cursor: p.busy ? 'default' : 'pointer',
+            boxSizing: 'border-box',
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px 12px',
+            borderRadius: 999,
+            border: `1px solid ${ct.line}`,
+            color: ct.ink,
+            fontWeight: 600,
+            fontSize: 13,
+            fontFamily: 'inherit',
+            opacity: p.busy ? 0.5 : 1,
+          }}
+        >
+          Peruuta
+        </button>
+        <button
+          aria-label={`${confirmLabel} — miitti ${idLabel}`}
+          onClick={onConfirm}
+          disabled={p.busy}
+          style={{
+            all: 'unset',
+            cursor: p.busy ? 'default' : 'pointer',
+            boxSizing: 'border-box',
+            flex: 1,
+            textAlign: 'center',
+            padding: '9px 12px',
+            borderRadius: 999,
+            background: hexA('#C2483F', p.busy ? 0.5 : 1),
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 13,
+            fontFamily: 'inherit',
+          }}
+        >
+          {p.busy ? 'Käsitellään…' : confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A single chat message bubble (user or assistant).
+ * @param {object} props - Props: m (message), t, ct, onConfirmPending, onCancelPending.
+ */
+function Bubble({ m, t, ct, onConfirmPending, onCancelPending }) {
   const isUser = m.role === 'user';
   return (
     <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
@@ -197,6 +302,16 @@ function Bubble({ m, t, ct }) {
           {m.typing ? <Typing color={ct.inkSoft} /> : renderText(m.text)}
         </div>
         {m.cards && m.cards.map((c, i) => <ResultChip key={i} r={c} t={t} ct={ct} />)}
+        {m.pending &&
+          m.pending.map((p) => (
+            <PendingActionChip
+              key={p.id}
+              p={p}
+              ct={ct}
+              onConfirm={() => onConfirmPending(p.id)}
+              onCancel={() => onCancelPending(p.id)}
+            />
+          ))}
       </div>
     </div>
   );
@@ -226,6 +341,7 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
+  const nextPendingId = useRef(0);
   const { panelRef } = useDialogA11y({ open, onClose });
 
   useEffect(() => {
@@ -278,8 +394,23 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
           // show details for) but ResultChip still renders a confirmation
           // for it using only `label` — don't filter those out too.
           cards: results
-            .filter((r) => r && (r.event || r.kind === 'remove'))
+            .filter((r) => r && !r.pending && (r.event || r.kind === 'remove'))
             .map((r) => ({ ...r })),
+          // 'edit'/'remove' actions come back as `pending: true` — they must
+          // not mutate EventStore until the user taps confirm on the chip.
+          pending: results
+            .filter((r) => r && r.pending)
+            .map((r) => {
+              nextPendingId.current += 1;
+              return {
+                id: nextPendingId.current,
+                kind: r.kind,
+                label: r.label,
+                action: r.action,
+                busy: false,
+                error: null,
+              };
+            }),
         },
       ]);
     } catch (e) {
@@ -295,6 +426,44 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
     }
 
     setBusy(false);
+  }
+
+  /**
+   * Runs a confirmed `edit`/`remove` action against EventStore, moving its
+   * chip from `pending` into `cards` on success or attaching an inline error
+   * (and re-enabling the chip) on failure — mirroring `ConfirmSheet`'s busy
+   * error handling.
+   * @param {number} msgIndex - Index of the message the chip belongs to.
+   * @param {number} pendingId - The chip's id.
+   */
+  async function confirmPending(msgIndex, pendingId) {
+    const target = msgs[msgIndex]?.pending?.find((p) => p.id === pendingId);
+    if (!target || target.busy) return;
+
+    setMsgs((m) => patchPendingAction(m, msgIndex, pendingId, { busy: true, error: null }));
+
+    const result = await executeConfirmedAction(target.action, user);
+
+    if (result && result.changed) {
+      setMsgs((m) => resolvePendingAction(m, msgIndex, pendingId, result));
+      refresh?.();
+    } else {
+      setMsgs((m) =>
+        patchPendingAction(m, msgIndex, pendingId, {
+          busy: false,
+          error: result?.label ?? 'Vahvistus epäonnistui — yritä uudelleen',
+        })
+      );
+    }
+  }
+
+  /**
+   * Discards a pending-action chip without executing it.
+   * @param {number} msgIndex - Index of the message the chip belongs to.
+   * @param {number} pendingId - The chip's id.
+   */
+  function cancelPending(msgIndex, pendingId) {
+    setMsgs((m) => dismissPendingAction(m, msgIndex, pendingId));
   }
 
   return (
@@ -417,7 +586,14 @@ export function ChatAssistant({ t, open, onClose, refresh }) {
           }}
         >
           {msgs.map((m, i) => (
-            <Bubble key={i} m={m} t={t} ct={ct} />
+            <Bubble
+              key={i}
+              m={m}
+              t={t}
+              ct={ct}
+              onConfirmPending={(pendingId) => confirmPending(i, pendingId)}
+              onCancelPending={(pendingId) => cancelPending(i, pendingId)}
+            />
           ))}
           {busy && <Bubble t={t} ct={ct} m={{ role: 'assistant', typing: true }} />}
         </div>

@@ -396,15 +396,9 @@ describe('End-to-end: chat assistant remove confirmation', () => {
     isAdmin: false,
   };
 
-  // Regression: applyAction() used to always return the mutated `event` in
-  // its result, which the assistant's `cards` filter required. Once remove
-  // stopped returning an `event` (there's nothing left to describe after a
-  // delete), the filter silently dropped every successful removal — no
-  // confirmation chip was shown even though ResultChip has dedicated
-  // 'remove' rendering that doesn't need `event` at all.
-  it('shows a confirmation chip after the assistant successfully removes a meetup', async (t) => {
-    localStorage.clear();
-    let deleteCalled = false;
+  /** Wires the same mocked routes every test in this block needs, tracking whether DELETE fired. */
+  function mockRemoveFlow(t) {
+    const state = { deleteCalled: false };
     t.mock.method(globalThis, 'fetch', async (url, opts = {}) => {
       const u = new URL(String(url), 'https://example.com');
       const method = (opts.method ?? 'GET').toUpperCase();
@@ -423,18 +417,29 @@ describe('End-to-end: chat assistant remove confirmation', () => {
           status: 200,
           json: async () => ({
             text: JSON.stringify({
-              reply: 'Poistin miitin puolestasi.',
+              reply: 'Selvä, poistetaanko miitti #ab12?',
               actions: [{ op: 'remove', id: 'ab12' }],
             }),
           }),
         };
       }
       if (method === 'DELETE' && u.pathname === '/api/events') {
-        deleteCalled = true;
+        state.deleteCalled = true;
         return { ok: true, status: 200, json: async () => ({ ok: true }) };
       }
       return { ok: false, status: 404, json: async () => ({ error: 'unmocked route' }) };
     });
+    return state;
+  }
+
+  // Regression (#92): a remove action from the assistant used to hit
+  // EventStore.remove() the instant the model emitted it — no confirmation
+  // step, unlike every other destructive action in the app. It must now
+  // surface a pending-action chip and wait for an explicit tap before the
+  // DELETE request is ever sent.
+  it('does not delete until the pending-action chip is confirmed', async (t) => {
+    localStorage.clear();
+    const state = mockRemoveFlow(t);
 
     const { unmount } = render(React.createElement(AuthProvider, null, React.createElement(App)));
 
@@ -445,8 +450,43 @@ describe('End-to-end: chat assistant remove confirmation', () => {
     fireEvent.change(input, { target: { value: 'poista #ab12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lähetä viesti' }));
 
-    await waitFor(() => assert.ok(deleteCalled, 'DELETE /api/events should have been called'));
+    const confirmButton = await screen.findByRole('button', { name: /Poista — miitti #ab12/ });
+    assert.strictEqual(state.deleteCalled, false, 'DELETE must not fire before confirmation');
+
+    fireEvent.click(confirmButton);
+
+    await waitFor(() =>
+      assert.ok(state.deleteCalled, 'DELETE /api/events should have been called')
+    );
     await screen.findByText('Poistettu #ab12');
+
+    await act(async () => unmount());
+  });
+
+  it('tapping cancel dismisses the chip without ever calling DELETE', async (t) => {
+    localStorage.clear();
+    const state = mockRemoveFlow(t);
+
+    const { unmount } = render(React.createElement(AuthProvider, null, React.createElement(App)));
+
+    const openChatButton = await screen.findByRole('button', { name: /Apuri/ });
+    fireEvent.click(openChatButton);
+
+    const input = await screen.findByPlaceholderText('Kirjoita viesti…');
+    fireEvent.change(input, { target: { value: 'poista #ab12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lähetä viesti' }));
+
+    const cancelButton = await screen.findByRole('button', { name: /Peruuta — miitti #ab12/ });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() =>
+      assert.strictEqual(
+        screen.queryByRole('button', { name: /Peruuta — miitti #ab12/ }),
+        null,
+        'the pending-action chip should be gone after cancelling'
+      )
+    );
+    assert.strictEqual(state.deleteCalled, false, 'DELETE must never fire when the user cancels');
 
     await act(async () => unmount());
   });
