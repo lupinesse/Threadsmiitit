@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import {
   addReactionToComment,
   postInlineComment,
+  resolveMutationToken,
   resolveThread,
   fetchAllIssueComments,
   formatThreadsForPrompt,
@@ -79,6 +80,39 @@ describe('addReactionToComment', () => {
       assert.ok(err.message.includes('404'), `expected 404 in: ${err.message}`);
       return true;
     });
+  });
+});
+
+// ─────────────────────────── resolveMutationToken ───────────────────────────
+
+describe('resolveMutationToken', () => {
+  test('prefers THREAD_RESOLVE_TOKEN over the fallback when set', () => {
+    const token = resolveMutationToken({ THREAD_RESOLVE_TOKEN: 'pat-1' }, 'app-token');
+    assert.strictEqual(token, 'pat-1');
+  });
+
+  test('falls back to the given token when THREAD_RESOLVE_TOKEN is unset', () => {
+    const token = resolveMutationToken({}, 'app-token');
+    assert.strictEqual(token, 'app-token');
+  });
+
+  test('falls back when THREAD_RESOLVE_TOKEN is blank/whitespace-only', () => {
+    // A workflow secret left literally empty renders as '' in env — must not
+    // be treated as "configured", or resolveThread would call the GraphQL
+    // API with an empty Authorization token.
+    assert.strictEqual(
+      resolveMutationToken({ THREAD_RESOLVE_TOKEN: '' }, 'app-token'),
+      'app-token'
+    );
+    assert.strictEqual(
+      resolveMutationToken({ THREAD_RESOLVE_TOKEN: '   ' }, 'app-token'),
+      'app-token'
+    );
+  });
+
+  test('trims surrounding whitespace from a configured token', () => {
+    const token = resolveMutationToken({ THREAD_RESOLVE_TOKEN: '  pat-1  ' }, 'app-token');
+    assert.strictEqual(token, 'pat-1');
   });
 });
 

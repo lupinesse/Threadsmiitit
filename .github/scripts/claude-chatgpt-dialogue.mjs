@@ -16,17 +16,26 @@
  *   HEAD_SHA                 Head SHA of the PR
  *
  * Optional env vars:
- *   MODEL              Override model (default 'claude-sonnet-4-6')
- *   MAX_TOKENS         default 3000
- *   DIFF_PATH          default 'pr.diff'
- *   MAX_DIFF_CHARS     default 30000
- *   CLAUDE_MD_PATH     default 'CLAUDE.md' (relative to CWD; included as cached system prefix)
+ *   MODEL                Override model (default 'claude-sonnet-4-6')
+ *   MAX_TOKENS           default 3000
+ *   DIFF_PATH            default 'pr.diff'
+ *   MAX_DIFF_CHARS       default 30000
+ *   CLAUDE_MD_PATH       default 'CLAUDE.md' (relative to CWD; included as cached system prefix)
+ *   THREAD_RESOLVE_TOKEN classic/fine-grained PAT (repo collaborator, "Pull
+ *                        requests: Read & write") used only for the
+ *                        resolveReviewThread mutation — GitHub App tokens
+ *                        cannot call it ("Resource not accessible by
+ *                        integration"), a platform limitation independent of
+ *                        the App's granted permissions. Falls back to
+ *                        GITHUB_TOKEN when unset, which will keep failing to
+ *                        resolve threads with that same error.
  */
 
 import { readFileSync } from 'node:fs';
 import {
   fetchAllThreads,
   replyToThread,
+  resolveMutationToken,
   resolveThread,
   upsertIssueComment,
 } from './lib/github-threads.mjs';
@@ -74,6 +83,18 @@ const GITHUB_TOKEN = must('GITHUB_TOKEN');
 const [OWNER, REPO] = must('GITHUB_REPOSITORY').split('/');
 const PR_NUMBER = must('PR_NUMBER');
 const HEAD_SHA = must('HEAD_SHA');
+
+// See the THREAD_RESOLVE_TOKEN doc comment above — GITHUB_TOKEN (the App
+// token) cannot resolve threads, so log clearly when we're about to hit that
+// wall instead of leaving a bare "FORBIDDEN" for someone to puzzle over.
+const RESOLVE_TOKEN = resolveMutationToken(process.env, GITHUB_TOKEN);
+if (RESOLVE_TOKEN === GITHUB_TOKEN) {
+  console.warn(
+    'THREAD_RESOLVE_TOKEN not set — resolving threads with the App token, which ' +
+      'GitHub rejects for resolveReviewThread ("Resource not accessible by integration"). ' +
+      'Replies will still post; resolution will keep failing until a PAT is configured.'
+  );
+}
 
 // Both credential paths default to claude-sonnet-4-6; MODEL env overrides.
 const MODEL_OVERRIDE = process.env.MODEL || '';
@@ -356,7 +377,7 @@ async function main() {
   for (const [idx, { posted, thread, verdict }] of replyResults) {
     if (posted && RESOLVABLE.has(verdict)) {
       try {
-        await resolveThread({ token: GITHUB_TOKEN, threadId: thread.id });
+        await resolveThread({ token: RESOLVE_TOKEN, threadId: thread.id });
         console.log(`  resolved thread[${idx}]`);
       } catch (err) {
         console.warn(`  resolve failed thread[${idx}]: ${err.message}`);
@@ -380,7 +401,7 @@ async function main() {
     const verdict = verdictById.get(t.id);
     if (verdict && RESOLVABLE.has(verdict)) {
       try {
-        await resolveThread({ token: GITHUB_TOKEN, threadId: t.id });
+        await resolveThread({ token: RESOLVE_TOKEN, threadId: t.id });
         console.log(`  retroactive resolve: ${t.id.slice(-8)}`);
       } catch (err) {
         console.warn(`  retroactive resolve failed: ${err.message}`);

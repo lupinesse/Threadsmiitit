@@ -37,6 +37,19 @@ name: ChatGPT PR Review
 #   CLAUDE_REVIEWER_APP_ID       — Client ID of the "Claude Reviewer" GitHub App
 #   CLAUDE_REVIEWER_PRIVATE_KEY  — .pem private key of the same App
 #
+# Optional secrets:
+#   THREAD_RESOLVE_TOKEN — classic/fine-grained PAT belonging to a real repo
+#     collaborator, with "Pull requests: Read and write". Used ONLY for the
+#     resolveReviewThread/unresolveReviewThread GraphQL mutations in Phase 2
+#     and Phase 4. GitHub App installation tokens (the two Reviewer Apps
+#     above) cannot call these mutations — GitHub rejects them with
+#     "Resource not accessible by integration" regardless of the App's
+#     granted pull_requests:write permission; this is a documented GitHub
+#     platform limitation, not a configuration mistake. Without this secret,
+#     replies still post correctly but threads never resolve, so the
+#     merge-gate job below blocks forever even when both bots agree a
+#     finding is addressed.
+#
 # Required permission:
 #   Settings > Actions > General > Workflow permissions > Read and write
 
@@ -239,6 +252,7 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GITHUB_TOKEN:            ${{ steps.claude-token.outputs.token || github.token }}
+          THREAD_RESOLVE_TOKEN:    ${{ secrets.THREAD_RESOLVE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER:         ${{ github.event.pull_request.number }}
           HEAD_SHA:          ${{ github.event.pull_request.head.sha }}
@@ -352,6 +366,7 @@ jobs:
         env:
           OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN:      ${{ steps.chatgpt-token.outputs.token || github.token }}
+          THREAD_RESOLVE_TOKEN: ${{ secrets.THREAD_RESOLVE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER:         ${{ github.event.pull_request.number }}
           HEAD_SHA:          ${{ github.event.pull_request.head.sha }}
