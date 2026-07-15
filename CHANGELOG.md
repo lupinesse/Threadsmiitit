@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The `chatgpt-pr-review` merge gate ("All ChatGPT findings resolved") blocked merges even when both review bots agreed a finding was addressed, because the `resolveReviewThread`/`unresolveReviewThread` GraphQL mutations always failed for the GitHub App tokens both phases used ("Resource not accessible by integration" — a GitHub platform limitation independent of the Apps' granted `pull_requests: write` permission; reply posting via REST is unaffected, which is why the reply text landed but the thread never closed). Reproduced on PR #106: Phase 2 and Phase 4 each logged the same `FORBIDDEN` error on every resolve attempt (#107). `resolveThread`/`unresolveThread` calls in `claude-chatgpt-dialogue.mjs` (Phase 2) and `chatgpt-claude-dialogue.mjs` (Phase 4) now use an optional dedicated `THREAD_RESOLVE_TOKEN` secret — a PAT belonging to a real repo collaborator, unaffected by the App restriction — via the new `resolveMutationToken()` helper (`.github/scripts/lib/github-threads.mjs`, unit tested), falling back to the App token (and logging why resolution will keep failing) when the secret isn't configured. Reply posting still uses the App tokens so bot attribution in the UI is unchanged.
+
 ### Added
 - `.github/CODEOWNERS` requesting review from the repo owner on any change to `netlify/functions/lib/admins.mjs`, the hardcoded moderator list (#79), so an admin-list change is never silent. Enabling GitHub's "Require review from Code Owners" branch protection rule on `main` — needed for this to actually block a merge rather than just request review — is a repo setting for the project maintainer(s), not something this file can do alone; worth turning on once there's more than one maintainer with merge rights.
 

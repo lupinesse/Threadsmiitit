@@ -23,6 +23,15 @@
  *   MAX_TOKENS           default 3072
  *   MAX_CONTEXT_CHARS    default 3000 — cap on the final-review context block
  *   DIFF_PATH            default 'pr.diff'
+ *   THREAD_RESOLVE_TOKEN classic/fine-grained PAT (repo collaborator, "Pull
+ *                        requests: Read & write") used only for the
+ *                        resolveReviewThread/unresolveReviewThread mutations
+ *                        — GitHub App tokens cannot call them ("Resource not
+ *                        accessible by integration"), a platform limitation
+ *                        independent of the App's granted permissions. Falls
+ *                        back to GITHUB_TOKEN when unset, which will keep
+ *                        failing to resolve/unresolve threads with that same
+ *                        error.
  */
 
 import { readFileSync } from 'node:fs';
@@ -31,6 +40,7 @@ import {
   fetchAllThreads,
   formatThreadsForPrompt,
   replyToThread,
+  resolveMutationToken,
   resolveThread,
   unresolveThread,
   upsertIssueComment,
@@ -62,6 +72,20 @@ const GITHUB_TOKEN = must('GITHUB_TOKEN');
 const [OWNER, REPO] = must('GITHUB_REPOSITORY').split('/');
 const PR_NUMBER = must('PR_NUMBER');
 const HEAD_SHA = must('HEAD_SHA');
+
+// See the THREAD_RESOLVE_TOKEN doc comment above — GITHUB_TOKEN (the App
+// token) cannot resolve/unresolve threads, so log clearly when we're about
+// to hit that wall instead of leaving a bare "FORBIDDEN" for someone to
+// puzzle over.
+const RESOLVE_TOKEN = resolveMutationToken(process.env, GITHUB_TOKEN);
+if (RESOLVE_TOKEN === GITHUB_TOKEN) {
+  console.warn(
+    'THREAD_RESOLVE_TOKEN not set — resolving threads with the App token, which ' +
+      'GitHub rejects for resolveReviewThread/unresolveReviewThread ("Resource not ' +
+      'accessible by integration"). Replies will still post; resolution will keep ' +
+      'failing until a PAT is configured.'
+  );
+}
 
 const MODEL = process.env.MODEL || 'gpt-4o-mini';
 const MAX_DIFF_CHARS = parseInt(process.env.MAX_DIFF_CHARS || '25000', 10);
@@ -387,7 +411,7 @@ async function main() {
       // Claude's Phase 2 picks it up on the next run and re-evaluates.
       if (a.unresolve && target.isResolved) {
         try {
-          await unresolveThread({ ...GH_CTX, threadId: target.id });
+          await unresolveThread({ ...GH_CTX, token: RESOLVE_TOKEN, threadId: target.id });
           console.log(`  unresolved thread ${a.threadIndex} (reopened)`);
         } catch (err) {
           console.warn(`  could not unresolve thread ${a.threadIndex}: ${err.message}`);
@@ -405,7 +429,7 @@ async function main() {
       // visible on the thread before it closes — clears the merge-gate.
       if (a.resolve && !target.isResolved) {
         try {
-          await resolveThread({ ...GH_CTX, threadId: target.id });
+          await resolveThread({ ...GH_CTX, token: RESOLVE_TOKEN, threadId: target.id });
           console.log(`  resolved thread ${a.threadIndex} (verified fix)`);
         } catch (err) {
           console.warn(`  could not resolve thread ${a.threadIndex}: ${err.message}`);
