@@ -68,6 +68,7 @@ const ADMIN_USER = {
   avatarUrl: null,
   profileUrl: 'https://www.threads.com/@lupinesse',
   isAdmin: true,
+  isRootAdmin: true,
 };
 
 /**
@@ -380,6 +381,68 @@ describe('End-to-end: admin moderation queue', () => {
     await waitFor(() => assert.ok(approveCalled, 'moderate endpoint should have been called'));
     await screen.findByText('Kaikki tarkistettu 🎉');
     await waitFor(() => assert.ok(eventsFetchCount >= 2, 'events should refetch after approve'));
+
+    await act(async () => unmount());
+  });
+});
+
+describe('End-to-end: self-service moderator management', () => {
+  after(cleanup);
+
+  it('lets a root admin add, see, and remove a self-service moderator', async (t) => {
+    localStorage.clear();
+    let roster = [];
+    t.mock.method(globalThis, 'fetch', async (url, opts = {}) => {
+      const u = new URL(String(url), 'https://example.com');
+      const method = (opts.method ?? 'GET').toUpperCase();
+      if (method === 'GET' && u.pathname === '/api/auth/whoami') {
+        return { ok: true, status: 200, json: async () => ADMIN_USER };
+      }
+      if (method === 'GET' && u.pathname === '/api/events') {
+        return { ok: true, status: 200, json: async () => ({ events: [] }) };
+      }
+      if (method === 'GET' && u.pathname === '/api/moderators') {
+        return { ok: true, status: 200, json: async () => ({ moderators: roster }) };
+      }
+      if (method === 'POST' && u.pathname === '/api/moderators') {
+        const { username } = JSON.parse(opts.body);
+        roster = [
+          ...roster,
+          { username: username.replace(/^@/, ''), addedBy: 'lupinesse', addedAt: Date.now() },
+        ];
+        return { ok: true, status: 201, json: async () => ({ moderators: roster }) };
+      }
+      if (method === 'DELETE' && u.pathname === '/api/moderators') {
+        const username = u.searchParams.get('username');
+        roster = roster.filter((m) => m.username !== username);
+        return { ok: true, status: 200, json: async () => ({ moderators: roster }) };
+      }
+      return { ok: false, status: 404, json: async () => ({ error: 'unmocked route' }) };
+    });
+
+    const { unmount } = render(React.createElement(AuthProvider, null, React.createElement(App)));
+
+    const moderatorsButton = await screen.findByRole('button', { name: 'Moderaattorit' });
+    fireEvent.click(moderatorsButton);
+
+    await screen.findByText('Ei moderaattoreita vielä');
+
+    const handleInput = screen.getByPlaceholderText('@kayttajatunnus');
+    fireEvent.change(handleInput, { target: { value: '@modbob' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lisää moderaattori' }));
+
+    await screen.findByText('@modbob');
+    assert.deepStrictEqual(
+      roster.map((m) => m.username),
+      ['modbob']
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Poista @modbob moderaattoreista' }));
+    const confirmButton = await screen.findByRole('button', { name: 'Poista' });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => assert.equal(roster.length, 0));
+    await screen.findByText('Ei moderaattoreita vielä');
 
     await act(async () => unmount());
   });
