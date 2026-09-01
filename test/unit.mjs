@@ -722,6 +722,54 @@ describe('EventStore canonicalKunta', () => {
   });
 });
 
+// ── ModeratorStore ───────────────────────────────────────────────────────────
+// Same thin-fetch-client shape as EventStore's server-backed methods above —
+// these tests only confirm ModeratorStore calls the right endpoint with the
+// right method/body and translates the response correctly, via the same
+// mockFetchOnce helper. The actual roster/authorization logic is covered
+// server-side by test/moderatorsStore.unit.mjs and test/moderators-function.unit.mjs.
+
+const ModeratorStore = (await import('../src/store/ModeratorStore.js')).default;
+
+describe('ModeratorStore.list', () => {
+  it('GETs /api/moderators', async (t) => {
+    const moderators = [{ username: 'bob', addedBy: 'lupinesse', addedAt: 1 }];
+    const calls = mockFetchOnce(t, { moderators });
+    const result = await ModeratorStore.list();
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.moderators, moderators);
+    assert.strictEqual(calls[0].url, '/api/moderators');
+  });
+});
+
+describe('ModeratorStore.add', () => {
+  it('POSTs the username to /api/moderators', async (t) => {
+    const calls = mockFetchOnce(t, { moderators: [] }, 201);
+    const result = await ModeratorStore.add('@bob');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls[0].url, '/api/moderators');
+    assert.strictEqual(calls[0].opts.method, 'POST');
+    assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { username: '@bob' });
+  });
+
+  it('surfaces a server-provided error on failure', async (t) => {
+    mockFetchOnce(t, { error: '@bob is already a moderator' }, 400);
+    const result = await ModeratorStore.add('@bob');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.error, '@bob is already a moderator');
+  });
+});
+
+describe('ModeratorStore.remove', () => {
+  it('DELETEs /api/moderators with the username as a query param', async (t) => {
+    const calls = mockFetchOnce(t, { moderators: [] });
+    const result = await ModeratorStore.remove('bob');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls[0].url, '/api/moderators?username=bob');
+    assert.strictEqual(calls[0].opts.method, 'DELETE');
+  });
+});
+
 // ── ChatAssistant.applyAction ────────────────────────────────────────────────
 // applyAction is now async (it goes through EventStore's server-backed API),
 // and no longer constructs `addedBy` itself — the server derives ownership
