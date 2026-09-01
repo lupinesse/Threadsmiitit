@@ -30,6 +30,19 @@ function parseRecipients(raw) {
 }
 
 /**
+ * Collapses embedded CR/LF into spaces. `event.title` is submitter-controlled
+ * free text — `eventNormalize.mjs` caps its length but doesn't strip
+ * newlines, and it flows straight into the email subject line, so this
+ * keeps a title like `"Kahvit\nBcc: x@y"` from being interpreted as more
+ * than one line by whatever eventually renders the subject.
+ * @param {string} value
+ * @returns {string}
+ */
+function collapseNewlines(value) {
+  return value.replace(/[\r\n]+/g, ' ');
+}
+
+/**
  * Notifies admins that a new event is pending review. No-ops (and logs why)
  * when `RESEND_API_KEY`, `EMAIL_FROM`, or `ADMIN_NOTIFY_EMAILS` isn't set,
  * so the feature stays off by default without any code change — the same
@@ -56,7 +69,7 @@ export async function notifyAdminsOfPendingEvent(event, { fetchImpl } = {}) {
       apiKey,
       from,
       to: recipients,
-      subject: `Uusi miitti odottaa hyväksyntää: ${event.title}`,
+      subject: `Uusi miitti odottaa hyväksyntää: ${collapseNewlines(event.title)}`,
       text: [
         `${event.title} — ${event.city}, ${event.date}`,
         `Lisäsi: ${event.addedBy?.username ?? 'tuntematon'}`,

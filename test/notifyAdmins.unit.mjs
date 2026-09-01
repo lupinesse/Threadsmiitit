@@ -79,6 +79,23 @@ describe('notifyAdminsOfPendingEvent', () => {
     assert.match(body.text, /submitter/);
   });
 
+  it('collapses newlines embedded in the submitted title before using it as the subject', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfPendingEvent(
+      { ...event, title: 'Kahvit\nBcc: attacker@example.com' },
+      { fetchImpl }
+    );
+    const body = JSON.parse(calls[0].opts.body);
+    assert.strictEqual(
+      body.subject,
+      'Uusi miitti odottaa hyväksyntää: Kahvit Bcc: attacker@example.com'
+    );
+  });
+
   it('logs and swallows a send failure instead of throwing', async () => {
     process.env.RESEND_API_KEY = 'key-123';
     process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
