@@ -7,7 +7,10 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { notifyAdminsOfPendingEvent } from '../netlify/functions/lib/notifyAdmins.mjs';
+import {
+  notifyAdminsOfPendingEvent,
+  notifyAdminsOfModeratorChange,
+} from '../netlify/functions/lib/notifyAdmins.mjs';
 
 const ENV_KEYS = ['RESEND_API_KEY', 'EMAIL_FROM', 'ADMIN_NOTIFY_EMAILS'];
 let savedEnv;
@@ -105,5 +108,68 @@ describe('notifyAdminsOfPendingEvent', () => {
     };
 
     await assert.doesNotReject(() => notifyAdminsOfPendingEvent(event, { fetchImpl }));
+  });
+});
+
+describe('notifyAdminsOfModeratorChange', () => {
+  it('does not call fetch when unconfigured', async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfModeratorChange(
+      { action: 'added', username: 'bob', actorUsername: 'lupinesse' },
+      { fetchImpl }
+    );
+    assert.strictEqual(calls.length, 0);
+  });
+
+  it('sends an "added" notification naming the moderator and the actor', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfModeratorChange(
+      { action: 'added', username: 'bob', actorUsername: 'lupinesse' },
+      { fetchImpl }
+    );
+    const body = JSON.parse(calls[0].opts.body);
+    assert.match(body.subject, /lisätty/);
+    assert.match(body.subject, /@bob/);
+    assert.match(body.text, /@lupinesse/);
+    assert.match(body.text, /lisäsi/);
+  });
+
+  it('sends a "removed" notification', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfModeratorChange(
+      { action: 'removed', username: 'bob', actorUsername: 'lupinesse' },
+      { fetchImpl }
+    );
+    const body = JSON.parse(calls[0].opts.body);
+    assert.match(body.subject, /poistettu/);
+    assert.match(body.text, /poisti/);
+  });
+
+  it('logs and swallows a send failure instead of throwing', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const fetchImpl = async () => {
+      throw new Error('network down');
+    };
+
+    await assert.doesNotReject(() =>
+      notifyAdminsOfModeratorChange(
+        { action: 'added', username: 'bob', actorUsername: 'lupinesse' },
+        { fetchImpl }
+      )
+    );
   });
 });

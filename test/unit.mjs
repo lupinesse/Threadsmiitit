@@ -1417,7 +1417,10 @@ import {
   isAdmin,
   requireUser,
   requireAdmin,
+  isModerator,
+  requireModerator,
 } from '../netlify/functions/lib/session.mjs';
+import { addModerator } from '../netlify/functions/lib/moderatorsStore.mjs';
 
 const sessionUser = {
   id: 'u1',
@@ -1628,5 +1631,45 @@ describe('requireUser / requireAdmin', () => {
     const result = requireAdmin({ headers: new Headers() });
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.response.status, 401);
+  });
+
+  describe('isModerator / requireModerator', () => {
+    it('isModerator returns true for a root admin without reading the store', async () => {
+      // No store passed at all — a root admin must never need a Blobs read.
+      assert.strictEqual(await isModerator('lupinesse'), true);
+    });
+
+    it('isModerator returns true for a self-service moderator via the injected store', async () => {
+      const store = createFakeStore();
+      await addModerator('@bob', 'lupinesse', store);
+      assert.strictEqual(await isModerator('bob', store), true);
+      assert.strictEqual(await isModerator('@Bob', store), true);
+    });
+
+    it('isModerator returns false for a stranger', async () => {
+      const store = createFakeStore();
+      assert.strictEqual(await isModerator('rando', store), false);
+    });
+
+    it('requireModerator returns ok for a self-service moderator', async () => {
+      const store = createFakeStore();
+      await addModerator('@bob', 'lupinesse', store);
+      const result = await requireModerator(requestWithUser('bob'), store);
+      assert.strictEqual(result.ok, true);
+      assert.strictEqual(result.user.username, 'bob');
+    });
+
+    it('requireModerator returns a 403 response for an authenticated non-moderator', async () => {
+      const store = createFakeStore();
+      const result = await requireModerator(requestWithUser('rando'), store);
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.response.status, 403);
+    });
+
+    it('requireModerator returns a 401 response when unauthenticated', async () => {
+      const result = await requireModerator({ headers: new Headers() }, createFakeStore());
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.response.status, 401);
+    });
   });
 });
