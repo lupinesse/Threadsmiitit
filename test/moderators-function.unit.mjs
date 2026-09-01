@@ -107,8 +107,11 @@ describe('POST /api/moderators', () => {
     assert.strictEqual(res.status, 201);
     const { moderators } = await res.json();
     assert.strictEqual(moderators[0].username, 'bob');
+    // Normalised ('bob', not the raw '@bob' the client sent) — the
+    // notification must use the same clean form the roster stores, so a
+    // future subject like `@${username}` never renders as "@@bob".
     assert.deepStrictEqual(notified, [
-      { action: 'added', username: '@bob', actorUsername: 'lupinesse' },
+      { action: 'added', username: 'bob', actorUsername: 'lupinesse' },
     ]);
   });
 
@@ -180,6 +183,20 @@ describe('DELETE /api/moderators', () => {
     assert.strictEqual(res.status, 200);
     const { moderators } = await res.json();
     assert.strictEqual(moderators.length, 0);
+    assert.deepStrictEqual(notified, [
+      { action: 'removed', username: 'bob', actorUsername: 'lupinesse' },
+    ]);
+  });
+
+  it('normalises an @-prefixed, mixed-case query param before matching and notifying', async () => {
+    const store = createFakeStore();
+    await addModerator('bob', 'lupinesse', store);
+    const notified = [];
+    const handler = createHandler(store, { notify: async (change) => notified.push(change) });
+    const res = await handler(
+      req('/api/moderators?username=%40Bob', { method: 'DELETE', user: root })
+    );
+    assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(notified, [
       { action: 'removed', username: 'bob', actorUsername: 'lupinesse' },
     ]);

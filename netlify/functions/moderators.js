@@ -21,7 +21,12 @@
  * @returns {Promise<Response>}
  */
 import { requireAdmin, requireModerator, isAdmin } from './lib/session.mjs';
-import { listModerators, addModerator, removeModerator } from './lib/moderatorsStore.mjs';
+import {
+  listModerators,
+  addModerator,
+  removeModerator,
+  normalize,
+} from './lib/moderatorsStore.mjs';
 import { notifyAdminsOfModeratorChange } from './lib/notifyAdmins.mjs';
 import { json, readJsonBody } from './lib/http.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
@@ -55,14 +60,18 @@ export function createHandler(store, { notify = notifyAdminsOfModeratorChange } 
 
       const body = await readJsonBody(req);
       if (!body?.username) return json({ error: 'username is required' }, 400);
-      if (isAdmin(body.username)) {
-        return json({ error: `@${body.username.replace(/^@/, '')} is already a root admin` }, 400);
+      // Normalised once, here, and reused for the store write and the
+      // notification below — an unnormalised "@Bob" must never leak into
+      // the notification email while the roster itself stores "bob".
+      const username = normalize(body.username);
+      if (isAdmin(username)) {
+        return json({ error: `@${username} is already a root admin` }, 400);
       }
 
-      const result = await addModerator(body.username, guard.user.username, store);
+      const result = await addModerator(username, guard.user.username, store);
       if (!result.ok) return json({ error: result.error }, 400);
 
-      await notifyModeratorChange(notify, 'added', body.username, guard.user.username);
+      await notifyModeratorChange(notify, 'added', username, guard.user.username);
       return json({ moderators: result.moderators }, 201);
     }
 
@@ -70,8 +79,9 @@ export function createHandler(store, { notify = notifyAdminsOfModeratorChange } 
       const guard = requireAdmin(req);
       if (!guard.ok) return guard.response;
 
-      const username = url.searchParams.get('username');
-      if (!username) return json({ error: 'username is required' }, 400);
+      const rawUsername = url.searchParams.get('username');
+      if (!rawUsername) return json({ error: 'username is required' }, 400);
+      const username = normalize(rawUsername);
 
       const result = await removeModerator(username, store);
       if (!result.ok) return json({ error: result.error }, 404);

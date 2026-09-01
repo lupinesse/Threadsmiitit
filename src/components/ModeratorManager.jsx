@@ -315,7 +315,11 @@ export function ModeratorManager({ t, open, onClose }) {
         onConfirm={confirmRemove}
         t={tc}
         label="Vahvista moderaattorin poisto"
-        title={`Poista @${removeTarget} moderaattoreista?`}
+        // Sheet/ConfirmSheet render their children regardless of `open`
+        // (visibility is CSS-only, see ui.jsx#Sheet), so this still
+        // evaluates while closed and `removeTarget` is null — fall back to
+        // '' rather than interpolate a literal "null" into the DOM.
+        title={`Poista @${removeTarget ?? ''} moderaattoreista?`}
         message="Henkilö menettää oikeuden julkaista, hylätä ja peruuttaa miittejä välittömästi."
         error={removeError}
         confirmLabel="Poista"

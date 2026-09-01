@@ -43,11 +43,15 @@ function resolveStore(store) {
 
 /**
  * Strips a leading `@` and lowercases, matching `session.mjs#isAdmin`'s
- * normalisation so the two tiers compare usernames the same way.
+ * normalisation so the two tiers compare usernames the same way. Exported
+ * so callers (e.g. `moderators.js`) can normalise a raw request value once
+ * and reuse the same clean form everywhere it's needed — including in a
+ * notification — rather than let an unnormalised `@Bob` leak past this
+ * module's own comparisons.
  * @param {string} username
  * @returns {string}
  */
-function normalize(username) {
+export function normalize(username) {
   return String(username ?? '')
     .trim()
     .replace(/^@/, '')
