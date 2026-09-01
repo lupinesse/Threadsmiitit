@@ -54,7 +54,7 @@
   "dependencies": {
     "@netlify/blobs": "^10.7.9",
     "@sentry/node": "10.65.0",
-    "@sentry/react": "10.65.0",
+    "@sentry/react": "10.66.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
