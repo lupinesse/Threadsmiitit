@@ -722,6 +722,54 @@ describe('EventStore canonicalKunta', () => {
   });
 });
 
+// ── ModeratorStore ───────────────────────────────────────────────────────────
+// Same thin-fetch-client shape as EventStore's server-backed methods above —
+// these tests only confirm ModeratorStore calls the right endpoint with the
+// right method/body and translates the response correctly, via the same
+// mockFetchOnce helper. The actual roster/authorization logic is covered
+// server-side by test/moderatorsStore.unit.mjs and test/moderators-function.unit.mjs.
+
+const ModeratorStore = (await import('../src/store/ModeratorStore.js')).default;
+
+describe('ModeratorStore.list', () => {
+  it('GETs /api/moderators', async (t) => {
+    const moderators = [{ username: 'bob', addedBy: 'lupinesse', addedAt: 1 }];
+    const calls = mockFetchOnce(t, { moderators });
+    const result = await ModeratorStore.list();
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.moderators, moderators);
+    assert.strictEqual(calls[0].url, '/api/moderators');
+  });
+});
+
+describe('ModeratorStore.add', () => {
+  it('POSTs the username to /api/moderators', async (t) => {
+    const calls = mockFetchOnce(t, { moderators: [] }, 201);
+    const result = await ModeratorStore.add('@bob');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls[0].url, '/api/moderators');
+    assert.strictEqual(calls[0].opts.method, 'POST');
+    assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { username: '@bob' });
+  });
+
+  it('surfaces a server-provided error on failure', async (t) => {
+    mockFetchOnce(t, { error: '@bob is already a moderator' }, 400);
+    const result = await ModeratorStore.add('@bob');
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.error, '@bob is already a moderator');
+  });
+});
+
+describe('ModeratorStore.remove', () => {
+  it('DELETEs /api/moderators with the username as a query param', async (t) => {
+    const calls = mockFetchOnce(t, { moderators: [] });
+    const result = await ModeratorStore.remove('bob');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls[0].url, '/api/moderators?username=bob');
+    assert.strictEqual(calls[0].opts.method, 'DELETE');
+  });
+});
+
 // ── ChatAssistant.applyAction ────────────────────────────────────────────────
 // applyAction is now async (it goes through EventStore's server-backed API),
 // and no longer constructs `addedBy` itself — the server derives ownership
@@ -1417,7 +1465,10 @@ import {
   isAdmin,
   requireUser,
   requireAdmin,
+  isModerator,
+  requireModerator,
 } from '../netlify/functions/lib/session.mjs';
+import { addModerator } from '../netlify/functions/lib/moderatorsStore.mjs';
 
 const sessionUser = {
   id: 'u1',
@@ -1628,5 +1679,45 @@ describe('requireUser / requireAdmin', () => {
     const result = requireAdmin({ headers: new Headers() });
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.response.status, 401);
+  });
+
+  describe('isModerator / requireModerator', () => {
+    it('isModerator returns true for a root admin without reading the store', async () => {
+      // No store passed at all — a root admin must never need a Blobs read.
+      assert.strictEqual(await isModerator('lupinesse'), true);
+    });
+
+    it('isModerator returns true for a self-service moderator via the injected store', async () => {
+      const store = createFakeStore();
+      await addModerator('@bob', 'lupinesse', store);
+      assert.strictEqual(await isModerator('bob', store), true);
+      assert.strictEqual(await isModerator('@Bob', store), true);
+    });
+
+    it('isModerator returns false for a stranger', async () => {
+      const store = createFakeStore();
+      assert.strictEqual(await isModerator('rando', store), false);
+    });
+
+    it('requireModerator returns ok for a self-service moderator', async () => {
+      const store = createFakeStore();
+      await addModerator('@bob', 'lupinesse', store);
+      const result = await requireModerator(requestWithUser('bob'), store);
+      assert.strictEqual(result.ok, true);
+      assert.strictEqual(result.user.username, 'bob');
+    });
+
+    it('requireModerator returns a 403 response for an authenticated non-moderator', async () => {
+      const store = createFakeStore();
+      const result = await requireModerator(requestWithUser('rando'), store);
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.response.status, 403);
+    });
+
+    it('requireModerator returns a 401 response when unauthenticated', async () => {
+      const result = await requireModerator({ headers: new Headers() }, createFakeStore());
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.response.status, 401);
+    });
   });
 });

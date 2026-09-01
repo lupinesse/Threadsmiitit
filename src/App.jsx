@@ -27,16 +27,20 @@ import {
   IconSpark,
   IconThreads,
   IconShield,
+  IconUsers,
 } from './components/icons.jsx';
 
 const THEME = makeTheme('social', 'monodark');
 
-// Code-split (#81): both sheets are closed by default and AdminInbox is
-// admin-only, so most sessions never need this code — deferring it to a
-// separate chunk, loaded only once each sheet actually mounts, shrinks the
-// main bundle non-admin users pay for on every load.
+// Code-split (#81): all three sheets below are closed by default and
+// admin-only (or root-admin-only), so most sessions never need this code —
+// deferring it to a separate chunk, loaded only once each sheet actually
+// mounts, shrinks the main bundle non-admin users pay for on every load.
 const AdminInbox = lazy(() =>
   import('./components/AdminInbox.jsx').then((m) => ({ default: m.AdminInbox }))
+);
+const ModeratorManager = lazy(() =>
+  import('./components/ModeratorManager.jsx').then((m) => ({ default: m.ModeratorManager }))
 );
 const ChatAssistant = lazy(() =>
   import('./components/ChatAssistant.jsx').then((m) => ({ default: m.ChatAssistant }))
@@ -98,7 +102,15 @@ const TABS = [
  */
 export default function App() {
   const t = THEME;
-  const { user, login, authError, clearAuthError, isAdmin, loading: authLoading } = useAuth();
+  const {
+    user,
+    login,
+    authError,
+    clearAuthError,
+    isAdmin,
+    isRootAdmin,
+    loading: authLoading,
+  } = useAuth();
 
   // ── Navigation state ───────────────────────────────────────────────────
   const [tab, setTab] = useState('miitit');
@@ -164,6 +176,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [moderatorManagerOpen, setModeratorManagerOpen] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState(null);
@@ -454,6 +467,29 @@ export default function App() {
                     )}
                   </button>
                 )}
+                {isRootAdmin && (
+                  <button
+                    aria-label="Moderaattorit"
+                    title="Moderaattorit"
+                    onClick={() => setModeratorManagerOpen(true)}
+                    style={{
+                      all: 'unset',
+                      cursor: 'pointer',
+                      width: 38,
+                      height: 38,
+                      borderRadius: 999,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: t.ink,
+                      background: t.surface,
+                      border: `1px solid ${t.line}`,
+                    }}
+                  >
+                    <IconUsers size={19} />
+                  </button>
+                )}
                 {tab === 'miitit' && (
                   <button
                     aria-label="Hae miittejä"
@@ -728,11 +764,11 @@ export default function App() {
         </Sheet>
 
         {/* ── Admin moderation inbox ────────────────────────────────── */}
-        {/* No loading indicator: both sheets start closed (`open={false}`)
-            and render nothing until their own `open` prop flips true, so
-            their chunk has time to load in the background before the user
-            ever sees the sheet — a "Ladataan…" flash here would only show
-            while nothing is visible anyway. */}
+        {/* No loading indicator: all three sheets below start closed
+            (`open={false}`) and render nothing until their own `open` prop
+            flips true, so their chunk has time to load in the background
+            before the user ever sees the sheet — a "Ladataan…" flash here
+            would only show while nothing is visible anyway. */}
         {isAdmin && (
           <Suspense fallback={null}>
             <AdminInbox
@@ -740,6 +776,17 @@ export default function App() {
               open={adminOpen}
               onClose={() => setAdminOpen(false)}
               refresh={refresh}
+            />
+          </Suspense>
+        )}
+
+        {/* ── Self-service moderator management (root admin only) ─────── */}
+        {isRootAdmin && (
+          <Suspense fallback={null}>
+            <ModeratorManager
+              t={t}
+              open={moderatorManagerOpen}
+              onClose={() => setModeratorManagerOpen(false)}
             />
           </Suspense>
         )}

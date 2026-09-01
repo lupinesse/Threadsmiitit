@@ -15,6 +15,7 @@ import { createHandler as createMineHandler } from '../netlify/functions/events-
 import { createHandler as createPendingHandler } from '../netlify/functions/events-pending.js';
 import { createHandler as createModerateHandler } from '../netlify/functions/events-moderate.js';
 import { createHandler as createCancelHandler } from '../netlify/functions/events-cancel.js';
+import { addModerator } from '../netlify/functions/lib/moderatorsStore.mjs';
 import { createFakeStore } from './fakes/blobsStore.mjs';
 
 const SECRET = 'test-secret';
@@ -32,6 +33,12 @@ const admin = {
   avatarUrl: null,
   profileUrl: 'https://www.threads.com/@lupinesse',
 };
+// Shared, empty for every pre-existing test below — none of them populate
+// or read it, since `admin` short-circuits requireModerator via the root
+// (ADMINS) check without ever touching the moderators store. Self-service-
+// moderator test cases below use their own fresh store instead, so they
+// can't leak state into each other.
+const moderatorsStore = createFakeStore();
 
 /**
  * Builds a Cookie header value carrying a signed session for the given user.
@@ -80,7 +87,7 @@ describe('GET /api/events', () => {
       req('/api/events', { method: 'POST', user: submitter, body: validPartial })
     );
     const { event } = await created.json();
-    await createModerateHandler(store)(
+    await createModerateHandler(store, { moderatorsStore })(
       req(`/api/events/moderate?id=${event.id}`, {
         method: 'POST',
         user: admin,
@@ -242,7 +249,7 @@ describe('GET /api/events/mine', () => {
       req('/api/events', { method: 'POST', user: submitter, body: validPartial })
     );
     const { event } = await created.json();
-    await createModerateHandler(store)(
+    await createModerateHandler(store, { moderatorsStore })(
       req(`/api/events/moderate?id=${event.id}`, {
         method: 'POST',
         user: admin,
@@ -271,7 +278,9 @@ describe('GET /api/events/pending', () => {
       req('/api/events', { method: 'POST', user: submitter, body: validPartial })
     );
 
-    const res = await createPendingHandler(store)(req('/api/events/pending', { user: admin }));
+    const res = await createPendingHandler(store, { moderatorsStore })(
+      req('/api/events/pending', { user: admin })
+    );
     assert.strictEqual(res.status, 200);
     const { events } = await res.json();
     assert.strictEqual(events.length, 1);
@@ -279,14 +288,30 @@ describe('GET /api/events/pending', () => {
 
   it('returns 403 for an authenticated non-admin', async () => {
     const store = createFakeStore();
-    const res = await createPendingHandler(store)(req('/api/events/pending', { user: submitter }));
+    const res = await createPendingHandler(store, { moderatorsStore })(
+      req('/api/events/pending', { user: submitter })
+    );
     assert.strictEqual(res.status, 403);
   });
 
   it('returns 401 for an unauthenticated caller', async () => {
     const store = createFakeStore();
-    const res = await createPendingHandler(store)(req('/api/events/pending'));
+    const res = await createPendingHandler(store, { moderatorsStore })(req('/api/events/pending'));
     assert.strictEqual(res.status, 401);
+  });
+
+  it('returns the queue to a self-service moderator (not in ADMINS)', async () => {
+    const store = createFakeStore();
+    const selfServiceStore = createFakeStore();
+    await addModerator('modbob', 'lupinesse', selfServiceStore);
+    await createEventsHandler(store)(
+      req('/api/events', { method: 'POST', user: submitter, body: validPartial })
+    );
+
+    const res = await createPendingHandler(store, { moderatorsStore: selfServiceStore })(
+      req('/api/events/pending', { user: { ...submitter, username: 'modbob' } })
+    );
+    assert.strictEqual(res.status, 200);
   });
 });
 
@@ -298,7 +323,7 @@ describe('POST /api/events/moderate', () => {
     );
     const { event } = await created.json();
 
-    const res = await createModerateHandler(store)(
+    const res = await createModerateHandler(store, { moderatorsStore })(
       req(`/api/events/moderate?id=${event.id}`, {
         method: 'POST',
         user: admin,
@@ -317,7 +342,7 @@ describe('POST /api/events/moderate', () => {
     );
     const { event } = await created.json();
 
-    const res = await createModerateHandler(store)(
+    const res = await createModerateHandler(store, { moderatorsStore })(
       req(`/api/events/moderate?id=${event.id}`, {
         method: 'POST',
         user: submitter,
@@ -329,7 +354,7 @@ describe('POST /api/events/moderate', () => {
 
   it('returns 404 for an unknown id', async () => {
     const store = createFakeStore();
-    const res = await createModerateHandler(store)(
+    const res = await createModerateHandler(store, { moderatorsStore })(
       req('/api/events/moderate?id=zzzz', {
         method: 'POST',
         user: admin,
@@ -346,7 +371,7 @@ describe('POST /api/events/moderate', () => {
     );
     const { event } = await created.json();
 
-    const res = await createModerateHandler(store)(
+    const res = await createModerateHandler(store, { moderatorsStore })(
       req(`/api/events/moderate?id=${event.id}`, {
         method: 'POST',
         user: admin,
@@ -354,6 +379,25 @@ describe('POST /api/events/moderate', () => {
       })
     );
     assert.strictEqual(res.status, 400);
+  });
+
+  it('lets a self-service moderator (not in ADMINS) approve a pending event', async () => {
+    const store = createFakeStore();
+    const selfServiceStore = createFakeStore();
+    await addModerator('modbob', 'lupinesse', selfServiceStore);
+    const created = await createEventsHandler(store)(
+      req('/api/events', { method: 'POST', user: submitter, body: validPartial })
+    );
+    const { event } = await created.json();
+
+    const res = await createModerateHandler(store, { moderatorsStore: selfServiceStore })(
+      req(`/api/events/moderate?id=${event.id}`, {
+        method: 'POST',
+        user: { ...submitter, username: 'modbob' },
+        body: { action: 'approve' },
+      })
+    );
+    assert.strictEqual(res.status, 200);
   });
 });
 
@@ -374,7 +418,7 @@ async function createApprovedEvent(store) {
     req('/api/events', { method: 'POST', user: submitter, body: validPartial })
   );
   const { event } = await created.json();
-  const approved = await createModerateHandler(store)(
+  const approved = await createModerateHandler(store, { moderatorsStore })(
     req(`/api/events/moderate?id=${event.id}`, {
       method: 'POST',
       user: admin,
@@ -389,7 +433,7 @@ describe('POST /api/events/cancel', () => {
     const store = createFakeStore();
     const event = await createApprovedEvent(store);
 
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: submitter })
     );
     assert.strictEqual(res.status, 200);
@@ -402,7 +446,7 @@ describe('POST /api/events/cancel', () => {
     const store = createFakeStore();
     const event = await createApprovedEvent(store);
 
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: admin })
     );
     assert.strictEqual(res.status, 200);
@@ -415,7 +459,7 @@ describe('POST /api/events/cancel', () => {
     const store = createFakeStore();
     const event = await createApprovedEvent(store);
 
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: other })
     );
     assert.strictEqual(res.status, 403);
@@ -425,7 +469,7 @@ describe('POST /api/events/cancel', () => {
     const store = createFakeStore();
     const event = await createApprovedEvent(store);
 
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req(`/api/events/cancel?id=${event.id}`, { method: 'POST' })
     );
     assert.strictEqual(res.status, 401);
@@ -433,7 +477,7 @@ describe('POST /api/events/cancel', () => {
 
   it('returns 400 when id is missing', async () => {
     const store = createFakeStore();
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req('/api/events/cancel', { method: 'POST', user: submitter })
     );
     assert.strictEqual(res.status, 400);
@@ -441,7 +485,7 @@ describe('POST /api/events/cancel', () => {
 
   it('returns 404 for an unknown id', async () => {
     const store = createFakeStore();
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req('/api/events/cancel?id=zzzz', { method: 'POST', user: submitter })
     );
     assert.strictEqual(res.status, 404);
@@ -454,7 +498,7 @@ describe('POST /api/events/cancel', () => {
     );
     const { event } = await created.json();
 
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req(`/api/events/cancel?id=${event.id}`, { method: 'POST', user: submitter })
     );
     assert.strictEqual(res.status, 400);
@@ -464,9 +508,24 @@ describe('POST /api/events/cancel', () => {
     const store = createFakeStore();
     const event = await createApprovedEvent(store);
 
-    const res = await createCancelHandler(store)(
+    const res = await createCancelHandler(store, { moderatorsStore })(
       req(`/api/events/cancel?id=${event.id}`, { method: 'GET', user: submitter })
     );
     assert.strictEqual(res.status, 405);
+  });
+
+  it("lets a self-service moderator (not in ADMINS) cancel someone else's event", async () => {
+    const store = createFakeStore();
+    const event = await createApprovedEvent(store);
+    const selfServiceStore = createFakeStore();
+    await addModerator('modbob', 'lupinesse', selfServiceStore);
+
+    const res = await createCancelHandler(store, { moderatorsStore: selfServiceStore })(
+      req(`/api/events/cancel?id=${event.id}`, {
+        method: 'POST',
+        user: { ...submitter, username: 'modbob' },
+      })
+    );
+    assert.strictEqual(res.status, 200);
   });
 });

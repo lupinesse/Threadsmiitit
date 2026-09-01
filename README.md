@@ -78,6 +78,10 @@ Netlify's Scheduled Functions feature may need enabling on the site before any o
 
 When someone submits a meetup, `netlify/functions/lib/notifyAdmins.mjs` emails every configured admin so a new pending submission doesn't sit unnoticed until someone happens to open `AdminInbox`. Sent via the Resend API through the thin wrapper in `netlify/functions/lib/emailClient.mjs`. Requires all three of `RESEND_API_KEY`, `EMAIL_FROM` (a sender address on a domain verified with Resend), and `ADMIN_NOTIFY_EMAILS` (comma-separated recipient addresses) — leaving any one unset keeps the feature fully inert, so submissions work exactly as before and admins simply don't get emailed. See [.env.example](.env.example). A failed send is logged, never surfaced to the submitter — it can't turn a successful submission into a failed one.
 
+#### Self-service moderators
+
+Moderator access is two-tier. **Root admins** are the hardcoded handles in `netlify/functions/lib/admins.mjs`'s `ADMINS` array — changing that list needs a code change, a PR, and CODEOWNERS review (see `.github/CODEOWNERS`), by design (issue #79). **Self-service moderators** are a second tier any root admin can grant or revoke entirely in-app, no deploy needed: the shield-icon-adjacent people icon in the header (visible only to root admins) opens a roster where you can add or remove a moderator by Threads handle. A self-service moderator gets full ordinary moderation power (approve/reject submissions, cancel meetups, see the pending queue) but can't grant or revoke access for anyone else — only root admins can. No new environment variables are needed; every grant/revoke reuses the admin-notification-email setup above if configured, so the visibility the CODEOWNERS review used to guarantee for `ADMINS` changes carries over to this tier too.
+
 #### Error monitoring (optional)
 
 Set `VITE_SENTRY_DSN` (browser) and/or `SENTRY_DSN` (Netlify Functions) to report uncaught errors to [Sentry](https://sentry.io). Both are unset by default — the app and functions run exactly as before with no external calls. See `src/lib/sentry.js` and `netlify/functions/lib/sentry.mjs`.

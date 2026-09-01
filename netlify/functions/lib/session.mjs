@@ -14,6 +14,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ADMINS } from './admins.mjs';
+import { isSelfServiceModerator } from './moderatorsStore.mjs';
 
 const COOKIE_NAME = 'tm_session';
 const DEFAULT_TTL_SECONDS = 5184000; // 60 days
@@ -208,6 +209,35 @@ export function requireAdmin(req) {
   const result = requireUser(req);
   if (!result.ok) return result;
   if (!isAdmin(result.user.username)) {
+    return { ok: false, response: new Response('Forbidden', { status: 403 }) };
+  }
+  return result;
+}
+
+/**
+ * Full moderator check: root admin (`ADMINS`) or a self-service moderator
+ * granted in-app by a root admin (`moderatorsStore.mjs`). Root is checked
+ * first so a root admin never needs a Blobs read.
+ * @param {string} username
+ * @param {import('./moderatorsStore.mjs').BlobStoreLike} [store] - Injectable for tests.
+ * @returns {Promise<boolean>}
+ */
+export async function isModerator(username, store) {
+  if (isAdmin(username)) return true;
+  return isSelfServiceModerator(username, store);
+}
+
+/**
+ * Guard: requires any moderator (root or self-service). 401 if
+ * unauthenticated, 403 if authenticated but neither.
+ * @param {Request} req
+ * @param {import('./moderatorsStore.mjs').BlobStoreLike} [store] - Injectable for tests.
+ * @returns {Promise<Guard>}
+ */
+export async function requireModerator(req, store) {
+  const result = requireUser(req);
+  if (!result.ok) return result;
+  if (!(await isModerator(result.user.username, store))) {
     return { ok: false, response: new Response('Forbidden', { status: 403 }) };
   }
   return result;

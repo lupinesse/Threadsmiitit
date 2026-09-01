@@ -22,6 +22,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRootAdmin, setIsRootAdmin] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -37,6 +38,7 @@ export function AuthProvider({ children }) {
         if (data) {
           setUser(data);
           setIsAdmin(!!data.isAdmin);
+          setIsRootAdmin(!!data.isRootAdmin);
         }
       })
       .catch(() => {
@@ -59,6 +61,7 @@ export function AuthProvider({ children }) {
     }
     setUser(null);
     setIsAdmin(false);
+    setIsRootAdmin(false);
   }
 
   /** Dismisses the OAuth error banner. */
@@ -68,7 +71,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, authError, clearAuthError, isAdmin, loading }}
+      value={{ user, login, logout, authError, clearAuthError, isAdmin, isRootAdmin, loading }}
     >
       {children}
     </AuthContext.Provider>
@@ -77,7 +80,9 @@ export function AuthProvider({ children }) {
 
 /**
  * Returns the current auth context.
- * @returns {object} Auth context with user (or null), login, logout, isAdmin, and loading.
+ * @returns {object} Auth context with user (or null), login, logout, isAdmin
+ *   (root or self-service moderator), isRootAdmin (hardcoded ADMINS tier
+ *   only — gates the moderator-management UI), and loading.
  */
 export function useAuth() {
   return useContext(AuthContext);

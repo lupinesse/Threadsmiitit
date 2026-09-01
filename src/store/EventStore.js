@@ -17,6 +17,7 @@
 import { CITIES, CATEGORIES, MEETUPS } from '../data.js';
 import { FI_KUNNAT } from '../cities.js';
 import { THREADS_URL_RE, normOrg, normCatSuggestion } from '../../shared/eventFields.mjs';
+import { apiFetch, JSON_HEADERS } from '../lib/apiFetch.js';
 
 const KEY_CITIES = 'threadsmiitit_custom_cities_v1';
 
@@ -194,45 +195,6 @@ function normalize(p) {
 }
 
 // ── Server-backed API ───────────────────────────────────────────────────────
-
-/**
- * Issues a fetch against an /api/events* endpoint, translating network and
- * non-2xx failures into a `{ ok: false, error }` result instead of throwing.
- * @param {string} url
- * @param {RequestInit} [opts]
- * @returns {Promise<object>} `{ok: true, ...body}` on success, `{ok: false, error: string}` on failure.
- */
-async function apiFetch(url, opts = {}) {
-  let res;
-  try {
-    res = await fetch(url, { credentials: 'same-origin', ...opts });
-  } catch (err) {
-    console.warn('[EventStore] Network error:', err);
-    return { ok: false, error: 'Verkkovirhe. Yritä uudelleen.' };
-  }
-
-  if (!res.ok) {
-    let error = `Pyyntö epäonnistui (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.error) error = body.error;
-    } catch {
-      // Non-JSON error body (e.g. a bare 401/405) — keep the generic message.
-    }
-    return { ok: false, error };
-  }
-
-  if (res.status === 204) return { ok: true };
-  try {
-    const body = await res.json();
-    return { ok: true, ...body };
-  } catch (err) {
-    console.warn('[EventStore] Malformed response body:', err);
-    return { ok: false, error: 'Virheellinen vastaus palvelimelta.' };
-  }
-}
-
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 /**
  * Returns every meetup visible in the public feed — seed events followed by
