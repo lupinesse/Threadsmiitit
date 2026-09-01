@@ -6,7 +6,8 @@
  *   client-side EventStore.all().
  * POST: submit a new event. Requires auth (requireUser) — the server
  *   derives `addedBy` from the session and always starts the event as
- *   `pending`. Replaces EventStore.add().
+ *   `pending`, then notifies admins it needs review (see notifyAdmins.mjs).
+ *   Replaces EventStore.add().
  * PATCH: edit an existing event (?id=). Requires auth and ownership.
  *   Replaces EventStore.edit().
  * DELETE: remove an existing event (?id=). Requires auth and ownership.
@@ -29,6 +30,7 @@ import {
 } from './lib/eventsStore.mjs';
 import { json, readJsonBody } from './lib/http.mjs';
 import { initSentry, withSentry } from './lib/sentry.mjs';
+import { notifyAdminsOfPendingEvent } from './lib/notifyAdmins.mjs';
 
 initSentry();
 
@@ -54,9 +56,13 @@ async function loadOwnedEvent(id, username, store) {
 /**
  * Builds the /api/events handler, with the Blobs store injectable for tests.
  * @param {import('./lib/eventsStore.mjs').BlobStoreLike} [store]
+ * @param {object} [options]
+ * @param {(event: import('./lib/eventsStore.mjs').StoredEvent) => Promise<void>} [options.notify] -
+ *   Called after a new pending event is created, to alert admins it needs review.
+ *   Injectable for tests; defaults to `notifyAdminsOfPendingEvent`.
  * @returns {(req: Request) => Promise<Response>}
  */
-export function createHandler(store) {
+export function createHandler(store, { notify = notifyAdminsOfPendingEvent } = {}) {
   return async function handler(req) {
     const url = new URL(req.url);
 
@@ -75,6 +81,16 @@ export function createHandler(store) {
 
       const result = await createEvent(body, guard.user, store);
       if (!result.ok) return json({ error: result.error }, 400);
+      // The submission already succeeded — a broken notify hook must never
+      // turn it into a failed response, so any error here is logged, not thrown.
+      try {
+        await notify(result.event);
+      } catch (error) {
+        console.error('[events] notify hook failed for a created event', {
+          eventId: result.event.id,
+          error,
+        });
+      }
       return json({ event: result.event }, 201);
     }
 

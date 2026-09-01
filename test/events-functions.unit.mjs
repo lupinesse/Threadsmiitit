@@ -109,6 +109,33 @@ describe('POST /api/events', () => {
     assert.strictEqual(event.addedBy.username, 'submitter');
   });
 
+  it('notifies admins with the newly created event', async () => {
+    const store = createFakeStore();
+    const notified = [];
+    const handler = createEventsHandler(store, { notify: async (event) => notified.push(event) });
+    const res = await handler(
+      req('/api/events', { method: 'POST', user: submitter, body: validPartial })
+    );
+    const { event } = await res.json();
+    assert.strictEqual(notified.length, 1);
+    assert.strictEqual(notified[0].id, event.id);
+  });
+
+  it('still returns 201 when the notify hook rejects', async () => {
+    const store = createFakeStore();
+    const handler = createEventsHandler(store, {
+      notify: async () => {
+        throw new Error('email provider down');
+      },
+    });
+    const res = await handler(
+      req('/api/events', { method: 'POST', user: submitter, body: validPartial })
+    );
+    assert.strictEqual(res.status, 201);
+    const { event } = await res.json();
+    assert.strictEqual(event.status, 'pending');
+  });
+
   it('returns 401 for an unauthenticated caller', async () => {
     const store = createFakeStore();
     const handler = createEventsHandler(store);

@@ -74,6 +74,10 @@ Three scheduled functions drive it: `netlify/functions/bot-cancellations.js` (ev
 
 Netlify's Scheduled Functions feature may need enabling on the site before any of these actually run on their cron schedules — a deploy step, not something this code can do for itself.
 
+#### Admin notification email (optional)
+
+When someone submits a meetup, `netlify/functions/lib/notifyAdmins.mjs` emails every configured admin so a new pending submission doesn't sit unnoticed until someone happens to open `AdminInbox`. Sent via the Resend API through the thin wrapper in `netlify/functions/lib/emailClient.mjs`. Requires all three of `RESEND_API_KEY`, `EMAIL_FROM` (a sender address on a domain verified with Resend), and `ADMIN_NOTIFY_EMAILS` (comma-separated recipient addresses) — leaving any one unset keeps the feature fully inert, so submissions work exactly as before and admins simply don't get emailed. See [.env.example](.env.example). A failed send is logged, never surfaced to the submitter — it can't turn a successful submission into a failed one.
+
 #### Error monitoring (optional)
 
 Set `VITE_SENTRY_DSN` (browser) and/or `SENTRY_DSN` (Netlify Functions) to report uncaught errors to [Sentry](https://sentry.io). Both are unset by default — the app and functions run exactly as before with no external calls. See `src/lib/sentry.js` and `netlify/functions/lib/sentry.mjs`.
