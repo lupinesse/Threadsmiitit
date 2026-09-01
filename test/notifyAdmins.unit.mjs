@@ -1,0 +1,92 @@
+/**
+ * Unit tests for netlify/functions/lib/notifyAdmins.mjs — run with Node's
+ * built-in test runner as part of `npm test`. `fetch` is mocked throughout;
+ * nothing here makes a real call to the Resend API.
+ */
+
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { notifyAdminsOfPendingEvent } from '../netlify/functions/lib/notifyAdmins.mjs';
+
+const ENV_KEYS = ['RESEND_API_KEY', 'EMAIL_FROM', 'ADMIN_NOTIFY_EMAILS'];
+let savedEnv;
+
+beforeEach(() => {
+  savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
+});
+
+afterEach(() => {
+  for (const key of ENV_KEYS) {
+    if (savedEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnv[key];
+  }
+});
+
+const event = {
+  id: 'ab12',
+  title: 'Threads-kahvit',
+  city: 'helsinki',
+  date: '2026-08-01',
+  addedBy: { username: 'submitter' },
+};
+
+/**
+ * Builds a fake fetch that always succeeds and records the calls it received.
+ * @returns {{fetchImpl: typeof fetch, calls: Array<{url: string, opts: object}>}}
+ */
+function fakeFetch() {
+  const calls = [];
+  const fetchImpl = async (url, opts = {}) => {
+    calls.push({ url: String(url), opts });
+    return { ok: true, status: 200, json: async () => ({ id: 'email-1' }) };
+  };
+  return { fetchImpl, calls };
+}
+
+describe('notifyAdminsOfPendingEvent', () => {
+  it('does not call fetch when RESEND_API_KEY is unset', async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfPendingEvent(event, { fetchImpl });
+    assert.strictEqual(calls.length, 0);
+  });
+
+  it('does not call fetch when ADMIN_NOTIFY_EMAILS is unset', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    delete process.env.ADMIN_NOTIFY_EMAILS;
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfPendingEvent(event, { fetchImpl });
+    assert.strictEqual(calls.length, 0);
+  });
+
+  it('sends to every trimmed, non-empty address in ADMIN_NOTIFY_EMAILS', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = ' admin1@example.com ,admin2@example.com,,';
+    const { fetchImpl, calls } = fakeFetch();
+
+    await notifyAdminsOfPendingEvent(event, { fetchImpl });
+    assert.strictEqual(calls.length, 1);
+    const body = JSON.parse(calls[0].opts.body);
+    assert.deepStrictEqual(body.to, ['admin1@example.com', 'admin2@example.com']);
+    assert.match(body.subject, /Threads-kahvit/);
+    assert.match(body.text, /submitter/);
+  });
+
+  it('logs and swallows a send failure instead of throwing', async () => {
+    process.env.RESEND_API_KEY = 'key-123';
+    process.env.EMAIL_FROM = 'bot@threadsmiitit.netlify.app';
+    process.env.ADMIN_NOTIFY_EMAILS = 'admin@example.com';
+    const fetchImpl = async () => {
+      throw new Error('network down');
+    };
+
+    await assert.doesNotReject(() => notifyAdminsOfPendingEvent(event, { fetchImpl }));
+  });
+});
